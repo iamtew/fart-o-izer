@@ -1,8 +1,10 @@
-FART-O-IZER 6000™ - PLAN.txt
+Fart-O-Izer 6000™ - PLAN.txt
 ============================
 
 Goal:
 A fully client-side fart synthesizer web app using HTML, CSS, JS. Responsive, mobile-friendly, single-button UI with an expandable Advanced panel. All settings must serialize into a shareable URL. Hosted on GitHub Pages.
+
+App Name: Fart-O-Izer 6000™
 
 ---------------------------------------
 1. PROJECT STRUCTURE
@@ -55,9 +57,9 @@ README.md
 ---------------------------------------
 - Settings object -> JSON -> base64 -> URL-safe encoding.
 - Example:
-  https://iamtew.github.io/fart-o-izer/?s=ENCODEDSTRING
+  https://iamtew.github.io/fart-o-izer/?FartID=ENCODEDSTRING
 - On load:
-  - Check URL param "s"
+  - Check URL param "FartID"
   - Decode -> apply settings -> update UI
 - Must avoid ugly long URLs:
   - Use compact keys (f, n, c, d, r, g)
@@ -80,7 +82,7 @@ README.md
 - Centered main button
 - Smooth transitions for advanced panel
 - Mobile-friendly touch targets
-- Dark theme or humorous theme (your choice)
+- Dark theme only
 
 ---------------------------------------
 8. APP.JS OUTLINE
@@ -124,10 +126,8 @@ README.md
 ---------------------------------------
 11. GITHUB PAGES HOSTING
 ---------------------------------------
-- Push repo
-- Enable Pages -> main branch -> root
-- Test URL serialization
-- Ensure no backend calls exist
+- Ensure layout of files will work as gh-pages hosted site.
+- Create necessary configuration files for setting up CNAME.
 
 ---------------------------------------
 12. CODING STYLE GUIDELINES
@@ -137,6 +137,7 @@ README.md
 - Keep CSS lightweight
 - Use semantic HTML
 - Comment code for future expansion
+- Comment code for humans
 
 ---------------------------------------
 END OF PLAN
