@@ -7,16 +7,20 @@
   <meta name="description" content="A fart synthesizer!">
   <title>FART-O-IZER 6000™</title>
   <link rel="stylesheet" href="style.css">
+  <!-- Load the audio engine before the UI controller; both remain dependency-free. -->
+  <script src="flatulence_factory.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
   <main class="app-shell">
+    <!-- Branding and the primary sound action. -->
     <header class="masthead">
       <p class="eyebrow">Personal atmospheric sound lab</p>
       <h1>FART-O-IZER <span>6000™</span></h1>
       <p class="tagline">Sculpt the rumble. Share the evidence.</p>
     </header>
 
+    <!-- The console keeps the main interaction centered across screen sizes. -->
     <section class="console" aria-labelledby="action-title">
       <div class="console-copy">
         <p class="section-label" id="action-title">Ready when you are</p>
@@ -30,12 +34,14 @@
       <p class="status" id="status" role="status" aria-live="polite">Audio is waiting for your first press.</p>
     </section>
 
+    <!-- Advanced controls are hidden until requested so the primary action stays clear. -->
     <button class="advanced-toggle" id="advanced-toggle" type="button" aria-expanded="false" aria-controls="advanced-panel">
       <span class="toggle-icon" aria-hidden="true">+</span>
       <span>Advanced controls</span>
     </button>
 
     <aside class="advanced-panel" id="advanced-panel" aria-label="Advanced sound controls" hidden>
+      <!-- Each range maps to one field in the settings object and FartID. -->
       <div class="panel-heading">
         <div>
           <p class="section-label">Sound architecture</p>

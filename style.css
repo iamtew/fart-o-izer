@@ -1,7 +1,7 @@
 @import url('https://fonts.cdnfonts.com/css/londrina-solid');
 @import url('https://fonts.cdnfonts.com/css/flapdoodle');
 
-
+/* Shared palette and dimensions keep the console visually coherent. */
 :root {
   color-scheme: dark;
   --ink: #f5f2e8;
@@ -17,6 +17,7 @@
 
 * { box-sizing: border-box; }
 
+/* The page uses a dark workshop atmosphere behind the bright launch control. */
 html { min-width: 320px; background: #101313; }
 
 body {
@@ -82,6 +83,7 @@ h1 span { color: var(--coral); }
 .console-copy { order: 0; }
 .hint { margin: 0.5rem 0 0; color: var(--muted); font-size: 0.9rem; }
 
+/* The round button is the visual and interaction center of the application. */
 .fart-button {
   position: relative;
   display: grid;
@@ -105,6 +107,7 @@ h1 span { color: var(--coral); }
 .button-subtitle { position: relative; margin-top: 0.8rem; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
 .status { min-height: 1.25rem; margin: 0; color: var(--muted); font-size: 0.82rem; }
 
+/* This toggle exposes the sound-design controls without crowding the main view. */
 .advanced-toggle {
   align-self: center;
   display: inline-flex;
@@ -121,6 +124,7 @@ h1 span { color: var(--coral); }
 .toggle-icon { display: inline-grid; place-items: center; width: 1.2rem; height: 1.2rem; color: var(--acid); font-size: 1.25rem; line-height: 1; transition: transform 180ms ease; }
 .advanced-toggle[aria-expanded="true"] .toggle-icon { transform: rotate(45deg); }
 
+/* The panel becomes a bottom sheet on small screens and a side sheet on desktop. */
 .advanced-panel {
   position: fixed;
   z-index: 5;
@@ -147,6 +151,7 @@ input[type="range"] { width: 100%; accent-color: var(--acid); cursor: pointer; }
 .share-note { max-width: 42rem; margin: 1.5rem auto 0; color: var(--muted); font-size: 0.78rem; }
 .share-note strong { color: var(--ink); }
 
+/* Respect users who prefer the interface to remain still. */
 @keyframes panel-in { from { transform: translateY(1rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
 @media (min-width: 760px) {

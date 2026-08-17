@@ -12,6 +12,7 @@ App Name: Fart-O-Izer 6000™
 /index.html
 /style.css
 /app.js
+/flatulence_factory.js
 /assets/
     /img/ (button graphics, logo, etc.)
     /sounds/ (optional future use)
@@ -23,7 +24,7 @@ README.md
 ---------------------------------------
 - Single giant "FART" button on screen.
 - Optional "Advanced" panel with sliders, toggles, and numeric inputs.
-- Web Audio API synthesizer generating fart sounds:
+- Flatulence Factory Web Audio API synthesizer generating fart sounds:
   - Oscillator (low freq)
   - Noise generator
   - Envelope (attack/decay)
@@ -72,7 +73,7 @@ README.md
 - "Advanced" toggle button
 - Hidden <div id="advanced-panel">
   - Sliders + labels
-- Script tag for app.js
+- Script tags for flatulence_factory.js and app.js
 - Link to style.css
 
 ---------------------------------------
@@ -85,11 +86,10 @@ README.md
 - Dark theme only
 
 ---------------------------------------
-8. APP.JS OUTLINE
+8. JAVASCRIPT OWNERSHIP
 ---------------------------------------
-- Initialize AudioContext
-- Build fart synth engine
-- UI bindings:
+- flatulence_factory.js is the Flatulence Factory, the audio brain of the FART-O-IZER 6000. It owns AudioContext, master gain, noise generation, and the fart synth engine.
+- app.js owns settings, serialization, status messages, and UI bindings. It passes current settings to the factory and does not build Web Audio nodes:
   - Main button -> playFart()
   - Sliders -> update settings object
   - Advanced toggle -> show/hide panel
@@ -132,12 +132,11 @@ README.md
 ---------------------------------------
 12. CODING STYLE GUIDELINES
 ---------------------------------------
-- Keep JS modular inside app.js
+- Keep UI logic in app.js and audio logic in flatulence_factory.js
 - Avoid external libs
 - Keep CSS lightweight
 - Use semantic HTML
-- Comment code for future expansion
-- Comment code for humans
+- Comment the purpose and flow of non-obvious code for humans
 
 ---------------------------------------
 END OF PLAN
