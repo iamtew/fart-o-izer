@@ -1,0 +1,143 @@
+FART-O-IZER 6000™ - PLAN.txt
+============================
+
+Goal:
+A fully client-side fart synthesizer web app using HTML, CSS, JS. Responsive, mobile-friendly, single-button UI with an expandable Advanced panel. All settings must serialize into a shareable URL. Hosted on GitHub Pages.
+
+---------------------------------------
+1. PROJECT STRUCTURE
+---------------------------------------
+/index.html
+/style.css
+/app.js
+/assets/
+    /img/ (button graphics, logo, etc.)
+    /sounds/ (optional future use)
+README.md
+/docs/PLAN.txt (this file)
+
+---------------------------------------
+2. CORE FEATURES
+---------------------------------------
+- Single giant "FART" button on screen.
+- Optional "Advanced" panel with sliders, toggles, and numeric inputs.
+- Web Audio API synthesizer generating fart sounds:
+  - Oscillator (low freq)
+  - Noise generator
+  - Envelope (attack/decay)
+  - Filter (wet/dry)
+  - LFO (wobble)
+- All settings stored in a JS object.
+
+---------------------------------------
+3. RESPONSIVE UI PLAN
+---------------------------------------
+- Mobile-first layout.
+- Centered main button.
+- "Advanced" panel slides up from bottom on mobile, slides out on desktop.
+- CSS grid or flexbox for settings layout.
+- Minimal dependencies; pure CSS.
+
+---------------------------------------
+4. ADVANCED PANEL SETTINGS
+---------------------------------------
+(Initial set; expandable later)
+- Oscillator frequency (bassiness)
+- Noise amount (splatter)
+- Filter cutoff (wetness)
+- Envelope decay (length)
+- LFO rate + depth (rumble)
+- Master gain
+- Randomize button (optional future)
+
+---------------------------------------
+5. SERIALIZATION & SHAREABLE URLS
+---------------------------------------
+- Settings object -> JSON -> base64 -> URL-safe encoding.
+- Example:
+  https://iamtew.github.io/fart-o-izer/?s=ENCODEDSTRING
+- On load:
+  - Check URL param "s"
+  - Decode -> apply settings -> update UI
+- Must avoid ugly long URLs:
+  - Use compact keys (f, n, c, d, r, g)
+  - Use base64url (replace +/ with -_)
+
+---------------------------------------
+6. INDEX.HTML OUTLINE
+---------------------------------------
+- Main button element
+- "Advanced" toggle button
+- Hidden <div id="advanced-panel">
+  - Sliders + labels
+- Script tag for app.js
+- Link to style.css
+
+---------------------------------------
+7. STYLE.CSS OUTLINE
+---------------------------------------
+- Fullscreen layout
+- Centered main button
+- Smooth transitions for advanced panel
+- Mobile-friendly touch targets
+- Dark theme or humorous theme (your choice)
+
+---------------------------------------
+8. APP.JS OUTLINE
+---------------------------------------
+- Initialize AudioContext
+- Build fart synth engine
+- UI bindings:
+  - Main button -> playFart()
+  - Sliders -> update settings object
+  - Advanced toggle -> show/hide panel
+- Serialization:
+  - encodeSettings()
+  - decodeSettings()
+  - applySettings()
+- On page load:
+  - Check URL for settings
+  - If present, decode + apply
+
+---------------------------------------
+9. FUTURE EXPANSIONS
+---------------------------------------
+- Preset library ("Wet Thunder", "Squeaky Chair", "Nuclear Option")
+- Visual fart meter (CSS animations)
+- Save/load presets locally
+- Multi-fart sequencer
+- Recording + export (if allowed by browser)
+- Funny achievements ("Master of Gas")
+
+---------------------------------------
+10. DEVELOPMENT FLOW
+---------------------------------------
+1. Build minimal UI + main button.
+2. Implement basic fart synth.
+3. Add advanced panel + sliders.
+4. Add settings object + live updates.
+5. Implement serialization + URL sharing.
+6. Polish responsive layout.
+7. Add graphics + branding.
+8. Deploy to GitHub Pages.
+
+---------------------------------------
+11. GITHUB PAGES HOSTING
+---------------------------------------
+- Push repo
+- Enable Pages -> main branch -> root
+- Test URL serialization
+- Ensure no backend calls exist
+
+---------------------------------------
+12. CODING STYLE GUIDELINES
+---------------------------------------
+- Keep JS modular inside app.js
+- Avoid external libs
+- Keep CSS lightweight
+- Use semantic HTML
+- Comment code for future expansion
+
+---------------------------------------
+END OF PLAN
+---------------------------------------
