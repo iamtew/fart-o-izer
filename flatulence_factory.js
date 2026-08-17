@@ -22,6 +22,11 @@
     // or modify the audio graph directly.
     let audioContext;
     let masterGain;
+    let analyserNode;
+    let captureNode;
+    let captureSink;
+    let captureFrames = [];
+    let workletModule;
 
     // Browsers require audio startup to happen in response to a user gesture;
     // creating the context lazily from play() satisfies that requirement.
@@ -31,7 +36,9 @@
       audioContext = new AudioContextClass();
       masterGain = audioContext.createGain();
       masterGain.gain.value = gain;
-      masterGain.connect(audioContext.destination);
+      analyserNode = audioContext.createAnalyser();
+      analyserNode.fftSize = 1024;
+      masterGain.connect(analyserNode).connect(audioContext.destination);
     }
 
     // A fresh noise buffer gives every fart its own unrepeatable texture.
@@ -100,7 +107,60 @@
       if (masterGain) masterGain.gain.setTargetAtTime(gain, audioContext.currentTime, 0.02);
     }
 
-    return { play, setGain };
+    async function startCapture(gain) {
+      if (!audioContext) createAudio(gain);
+      if (!audioContext.audioWorklet || !window.AudioWorkletNode) {
+        throw new Error('WAV recording is not supported in this browser.');
+      }
+      if (audioContext.state === 'suspended') await audioContext.resume();
+      if (!workletModule) workletModule = audioContext.audioWorklet.addModule('pcm_capture_worklet.js');
+      try {
+        await workletModule;
+      } catch (error) {
+        workletModule = null;
+        throw error;
+      }
+      captureFrames = [];
+      captureNode = new AudioWorkletNode(audioContext, 'pcm-capture');
+      captureSink = audioContext.createGain();
+      captureSink.gain.value = 0;
+      captureNode.port.onmessage = event => {
+        if (event.data.type === 'samples') captureFrames.push(event.data.samples);
+      };
+      analyserNode.connect(captureNode).connect(captureSink).connect(audioContext.destination);
+    }
+
+    function getRMS() {
+      if (!analyserNode) return 0;
+      const samples = new Float32Array(analyserNode.fftSize);
+      analyserNode.getFloatTimeDomainData(samples);
+      let squareTotal = 0;
+      samples.forEach(sample => { squareTotal += sample * sample; });
+      return Math.sqrt(squareTotal / samples.length);
+    }
+
+    function stopCapture() {
+      if (!captureNode) return Promise.resolve({ samples: new Float32Array(0), sampleRate: audioContext.sampleRate });
+      return new Promise(resolve => {
+        const node = captureNode;
+        node.port.onmessage = event => {
+          if (event.data.type !== 'stopped') return;
+          node.disconnect();
+          captureSink.disconnect();
+          captureNode = null;
+          captureSink = null;
+          const length = captureFrames.reduce((total, frame) => total + frame.length, 0);
+          const samples = new Float32Array(length);
+          let offset = 0;
+          captureFrames.forEach(frame => { samples.set(frame, offset); offset += frame.length; });
+          captureFrames = [];
+          resolve({ samples, sampleRate: audioContext.sampleRate });
+        };
+        node.port.postMessage('stop');
+      });
+    }
+
+    return { play, setGain, startCapture, getRMS, stopCapture };
   }
 
   window.createFlatulenceFactory = createFlatulenceFactory;

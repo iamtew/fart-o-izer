@@ -1,0 +1,91 @@
+/docs/PLAN_RECORDING.txt
+========================
+FART-O-IZER 6000(TM) - Smart Silence WAV Recording Plan
+
+Goal
+----
+Add client-side recording of the synthesized fart output. A completed, non-empty
+recording downloads as a real PCM WAV file and appears in a collapsible result
+section. The recording exists only in memory until the page reloads.
+
+Design decisions
+----------------
+- Keep the existing dependency-free HTML/CSS/JavaScript architecture.
+- Keep audio graph ownership in flatulence_factory.js and recording policy,
+  downloads, status, and DOM ownership in app.js.
+- Capture the factory's synthesized master output only. Do not use microphone
+  APIs, permissions, or MediaStream input.
+- MediaRecorder chunks are browser-selected containers such as WebM/Opus and
+  cannot be renamed or concatenated into WAV. Capture PCM frames with an
+  AudioWorklet and encode a mono, 16-bit, little-endian RIFF/WAVE file.
+- Preserve the existing action flow: Record, Controls, Share. The result section
+  is below that row and does not replace the advanced controls panel.
+
+Audio implementation
+--------------------
+1. Keep the lazy AudioContext, master gain, scheduled fart nodes, and setGain()
+   behavior in flatulence_factory.js.
+2. Route masterGain through an AnalyserNode and continue connecting it to the
+   audible destination. Recording must not mute normal playback.
+3. Add a private capture lifecycle to the factory. When recording starts, load a
+   small PCM AudioWorklet processor, connect the analyser to it, and collect
+   copied Float32 frames. On stop, disconnect the capture branch and return the
+   combined samples and context sample rate through a narrow public API.
+4. app.js polls factory RMS data about every 50ms. The detector is not armed by
+  initial silence: it first waits for RMS >= 0.01, then stops after 1 second
+   below the threshold. A no-signal session remains available until the hard
+   10-second maximum so the user has time to press FART.
+
+Recording workflow
+------------------
+1. Record starts the factory capture, changes the button to its recording state,
+   and starts the RMS loop and 10-second timer.
+2. The user presses FART normally. Overlapping synthesized sounds are captured
+   through the shared master output.
+3. Manual stop, trailing silence after a detected signal, or the maximum timer
+   ends the session. All stop paths are idempotent and clear their timers.
+4. PCM frames are encoded as valid WAV. Empty captures do not create a result.
+5. A non-empty result replaces and revokes the prior object URL, downloads once,
+   stores the Blob for re-download, and reveals the result section.
+
+UI and accessibility
+--------------------
+- Add a semantic Record toggle before the existing Controls and Share buttons.
+  It exposes aria-pressed and an accessible idle/recording label.
+- Add a hidden result section below .main-actions with a header button that
+  controls collapse, duration metadata, a re-download WAV link, and a separate
+  circular close button. Closing hides the section but keeps the Blob available.
+- Match the current dark workshop palette, Londrina/Flapdoodle typography,
+  pill buttons, focus-visible outlines, and responsive breakpoint behavior.
+  Keep desktop actions inline and prevent overflow on narrow screens.
+- Unsupported Web Audio/AudioWorklet or capture failures produce a status message
+  rather than an uncaught exception.
+
+Files and responsibilities
+--------------------------
+- flatulence_factory.js: analyser routing and PCM capture lifecycle.
+- pcm_capture_worklet.js: dependency-free AudioWorklet processor with no DOM code.
+- app.js: recording state, timers, RMS policy, WAV encoding, downloads, result
+  section, object URL cleanup, and error handling.
+- index.html: Record action and hidden recording result markup.
+- style.css: action/result states integrated with the current visual language.
+- README.md: user-facing recording behavior, limits, and support notes.
+
+Verification
+------------
+- Existing FART, Controls, Share, reset, URL restoration, and panel close flows
+  still work.
+- Recording starts without microphone permission and leaves speaker playback on.
+- A fart recording stops after signal plus 1 second of trailing silence; idle
+  recording waits for the 10-second maximum rather than stopping prematurely.
+- Manual stop, repeated sessions, rapid toggles, gain changes, empty captures,
+  collapse, close, and re-download behave safely.
+- The downloaded bytes begin with RIFF/WAVE and contain PCM format 1, one channel,
+  the correct sample rate, valid sizes, and audible synthesized content.
+- Test keyboard/ARIA behavior, mobile and desktop layouts, reduced motion, and
+  unsupported browser handling over a local HTTP server.
+
+Out of scope
+------------
+Recording history, trimming, normalization, timeline editing, uploads, sharing
+audio URLs, and server-side persistence.

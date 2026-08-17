@@ -14,6 +14,11 @@
   const controls = {};
   const outputs = {};
   let settings = { ...defaults };
+  const recording = {
+    active: false, countingDown: false, starting: false, stopRequested: false, sawSignal: false,
+    silenceStarted: 0, maxTimer: null, rmsTimer: null, countdownTimer: null, lastBlobURL: null, filename: '', stopping: false
+  };
+  let lastBlob;
 
   const formatters = {
     frequency: value => `${Math.round(value)} Hz`,
@@ -134,6 +139,182 @@
     }
   }
 
+  function writeString(view, offset, value) {
+    for (let index = 0; index < value.length; index += 1) view.setUint8(offset + index, value.charCodeAt(index));
+  }
+
+  function encodeWav(samples, sampleRate) {
+    const bytesPerSample = 2;
+    const dataSize = samples.length * bytesPerSample;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * bytesPerSample, true);
+    view.setUint16(32, bytesPerSample, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, dataSize, true);
+    for (let index = 0; index < samples.length; index += 1) {
+      const sample = Math.max(-1, Math.min(1, samples[index]));
+      view.setInt16(44 + index * bytesPerSample, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+    }
+    return new Blob([buffer], { type: 'audio/wav' });
+  }
+
+  function createRecordingFilename(date = new Date()) {
+    const pad = value => String(value).padStart(2, '0');
+    const timestamp = [
+      date.getFullYear(), pad(date.getMonth() + 1), pad(date.getDate()),
+      pad(date.getHours()), pad(date.getMinutes()), pad(date.getSeconds())
+    ].join('');
+    return `Furious_Flatulence-${timestamp}.wav`;
+  }
+
+  function clearRecordingTimers() {
+    window.clearTimeout(recording.maxTimer);
+    window.clearInterval(recording.rmsTimer);
+    window.clearTimeout(recording.countdownTimer);
+    recording.maxTimer = null;
+    recording.rmsTimer = null;
+    recording.countdownTimer = null;
+  }
+
+  function updateRecordingButton() {
+    const button = document.getElementById('record-button');
+    const icon = button.querySelector('.record-icon');
+    const label = button.querySelector('.record-label');
+    button.setAttribute('aria-pressed', String(recording.active || recording.countingDown));
+    button.classList.toggle('is-recording', recording.active || recording.countingDown);
+    button.classList.toggle('is-counting-down', recording.countingDown);
+    icon.textContent = recording.active ? '●' : '○';
+    label.textContent = recording.countingDown ? 'Get ready...' : (recording.active ? 'Stop recording' : 'Record');
+  }
+
+  function showRecordingSection(duration, state = 'complete') {
+    const section = document.getElementById('recording-section');
+    const line = document.getElementById('recording-line');
+    const durationLabel = document.getElementById('recording-duration');
+    const link = document.getElementById('recording-download');
+    line.className = `recording-line recording-line-${state}`;
+    if (state === 'countdown') {
+      link.textContent = 'no data';
+      link.removeAttribute('href');
+      durationLabel.textContent = '';
+    } else if (state === 'active') {
+      link.textContent = 'Recording gorgeous gas....';
+      link.removeAttribute('href');
+      durationLabel.textContent = '';
+    } else {
+      link.textContent = 'Re-download WAV';
+      link.href = recording.lastBlobURL;
+      link.download = recording.filename;
+      durationLabel.textContent = `${duration.toFixed(1)}s`;
+    }
+    section.hidden = false;
+    section.classList.remove('is-collapsed');
+    document.getElementById('recording-collapse').setAttribute('aria-expanded', 'true');
+  }
+
+  async function stopRecording(flatulenceFactory, reason) {
+    if (!recording.active || recording.stopping) return;
+    recording.active = false;
+    recording.stopping = true;
+    clearRecordingTimers();
+    updateRecordingButton();
+    try {
+      const result = await flatulenceFactory.stopCapture();
+      if (!recording.sawSignal || !result.samples.length) {
+        showRecordingSection(0, 'countdown');
+        setStatus(reason === 'manual' ? 'No sound was captured.' : 'No fart signal was captured.');
+        return;
+      }
+      lastBlob = encodeWav(result.samples, result.sampleRate);
+      recording.filename = createRecordingFilename();
+      if (recording.lastBlobURL) URL.revokeObjectURL(recording.lastBlobURL);
+      recording.lastBlobURL = URL.createObjectURL(lastBlob);
+      const link = document.getElementById('recording-download');
+      link.href = recording.lastBlobURL;
+      link.download = recording.filename;
+      link.click();
+      showRecordingSection(result.samples.length / result.sampleRate);
+      setStatus('Fart recording ready to download again.');
+    } catch (error) {
+      setStatus(error.message || 'The recording could not be saved.');
+      showRecordingSection(0, 'countdown');
+    } finally {
+      recording.stopping = false;
+    }
+  }
+
+  async function startRecording(flatulenceFactory) {
+    if (recording.stopping) {
+      setStatus('Finishing the previous recording. Try again in a moment.');
+      return;
+    }
+    if (recording.active || recording.countingDown) {
+      recording.stopRequested = true;
+      if (recording.countingDown) {
+        recording.countingDown = false;
+        clearRecordingTimers();
+        updateRecordingButton();
+        setStatus('Recording cancelled.');
+      } else if (!recording.starting) await stopRecording(flatulenceFactory, 'manual');
+      return;
+    }
+    recording.countingDown = true;
+    recording.stopRequested = false;
+    updateRecordingButton();
+    showRecordingSection(0, 'countdown');
+    setStatus('Recording starts in 2 seconds.');
+    recording.countdownTimer = window.setTimeout(() => beginRecording(flatulenceFactory), 2000);
+  }
+
+  async function beginRecording(flatulenceFactory) {
+    recording.countingDown = false;
+    recording.active = true;
+    recording.starting = true;
+    recording.sawSignal = false;
+    recording.silenceStarted = 0;
+    updateRecordingButton();
+    showRecordingSection(0, 'active');
+    try {
+      await flatulenceFactory.startCapture(settings.gain);
+      if (recording.stopRequested) {
+        recording.starting = false;
+        await stopRecording(flatulenceFactory, 'manual');
+        return;
+      }
+      recording.starting = false;
+      recording.maxTimer = window.setTimeout(() => stopRecording(flatulenceFactory, 'maximum'), 10000);
+      recording.rmsTimer = window.setInterval(() => {
+        const rms = flatulenceFactory.getRMS();
+        if (rms >= 0.01) {
+          recording.sawSignal = true;
+          recording.silenceStarted = 0;
+        } else if (recording.sawSignal) {
+          if (!recording.silenceStarted) recording.silenceStarted = Date.now();
+          if (Date.now() - recording.silenceStarted >= 1000) stopRecording(flatulenceFactory, 'silence');
+        }
+      }, 50);
+      setStatus('Recording armed. Press FART to capture the evidence.');
+    } catch (error) {
+      clearRecordingTimers();
+      await flatulenceFactory.stopCapture().catch(() => {});
+      recording.active = false;
+      recording.starting = false;
+      updateRecordingButton();
+      showRecordingSection(0, 'countdown');
+      setStatus(error.message || 'WAV recording could not be started.');
+    }
+  }
+
   function initialize() {
     // Factory creation is inexpensive and does not start audio. The audio
     // context itself is still created lazily on the first FART press.
@@ -158,13 +339,27 @@
     }
     syncControls();
     document.getElementById('fart-button').addEventListener('click', () => playFart(flatulenceFactory));
+    document.getElementById('record-button').addEventListener('click', () => startRecording(flatulenceFactory));
     document.getElementById('share-button').addEventListener('click', copyShareUrl);
     document.getElementById('advanced-toggle').addEventListener('click', () => togglePanel(true));
     document.getElementById('reset-settings').addEventListener('click', () => resetSettings(flatulenceFactory));
     document.getElementById('panel-share-button').addEventListener('click', copyShareUrl);
     document.getElementById('close-panel').addEventListener('click', () => togglePanel(false));
+    document.getElementById('recording-collapse').addEventListener('click', () => {
+      const section = document.getElementById('recording-section');
+      const expanded = section.classList.toggle('is-collapsed') === false;
+      document.getElementById('recording-collapse').setAttribute('aria-expanded', String(expanded));
+    });
+    document.getElementById('close-recording').addEventListener('click', () => {
+      document.getElementById('recording-section').hidden = true;
+    });
+    window.addEventListener('beforeunload', () => {
+      if (recording.lastBlobURL) URL.revokeObjectURL(recording.lastBlobURL);
+    });
   }
 
-  // Wait for the deferred scripts and document markup before binding controls.
-  document.addEventListener('DOMContentLoaded', initialize);
+  // Deferred scripts normally run before DOMContentLoaded, but initialize
+  // immediately when this file is loaded after that event has already fired.
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize);
+  else initialize();
 })();

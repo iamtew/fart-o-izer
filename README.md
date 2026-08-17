@@ -21,3 +21,9 @@ Open `http://localhost:8080/` and press **FART**. Browsers require the first aud
 ## Share a sound
 
 Adjust the Advanced controls. The settings are encoded into the `FartID` query parameter using URL-safe base64. Copy the page URL and open it elsewhere to restore the same settings.
+
+## Record a sound
+
+Press **Record**, then press **FART** as usual. The recorder captures the synthesizer's output, not the microphone, so no microphone permission is requested. Recording stops manually, after 1 second of silence following a detected fart signal, or at the 10-second maximum.
+
+Non-empty recordings download as mono PCM WAV files. The latest recording remains available in the **Fart Recording** section for another download until the page is reloaded. Browsers must support Web Audio and `AudioWorklet`; unsupported browsers report the problem in the status message.
