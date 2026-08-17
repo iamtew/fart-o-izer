@@ -1,3 +1,7 @@
+@import url('https://fonts.cdnfonts.com/css/londrina-solid');
+@import url('https://fonts.cdnfonts.com/css/flapdoodle');
+
+
 :root {
   color-scheme: dark;
   --ink: #f5f2e8;
@@ -23,7 +27,8 @@ body {
   background:
     radial-gradient(circle at 50% 42%, rgba(60, 75, 63, 0.32), transparent 34rem),
     linear-gradient(135deg, #101313 0%, #121816 55%, #0b0e0d 100%);
-  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  font-family: 'Londrina Solid', sans-serif;
+  font-weight: 400;
 }
 
 button, input { font: inherit; }
@@ -54,7 +59,7 @@ h1, h2, p { margin-top: 0; }
 h1 {
   max-width: 24rem;
   margin-bottom: 0.35rem;
-  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-family: 'Flapdoodle', sans-serif;
   font-size: clamp(2.8rem, 13vw, 6.5rem);
   font-weight: 400;
   line-height: 0.88;
@@ -96,7 +101,7 @@ h1 span { color: var(--coral); }
 .fart-button:active { transform: scale(0.96); box-shadow: 0 0.5rem 1rem var(--shadow), 0 0 0 0.6rem rgba(214, 239, 82, 0.05), inset 0 -0.5rem 0 rgba(139, 168, 35, 0.32); }
 .fart-button:focus-visible, .advanced-toggle:focus-visible, .close-panel:focus-visible, input:focus-visible { outline: 3px solid var(--coral); outline-offset: 4px; }
 .button-ring { position: absolute; inset: 7%; border: 1px solid rgba(18, 22, 16, 0.2); border-radius: 50%; }
-.button-word { position: relative; font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif; font-size: clamp(3.4rem, 17vw, 7.2rem); line-height: 0.8; letter-spacing: 0.04em; }
+.button-word { position: relative; font-family: 'Flapdoodle', sans-serif; font-size: clamp(3.4rem, 17vw, 7.2rem); line-height: 0.8; letter-spacing: 0.04em; }
 .button-subtitle { position: relative; margin-top: 0.8rem; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
 .status { min-height: 1.25rem; margin: 0; color: var(--muted); font-size: 0.82rem; }
 
