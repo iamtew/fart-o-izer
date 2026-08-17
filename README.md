@@ -15,14 +15,3 @@ Open `http://localhost:8080/` and press **FART**. Browsers require the first aud
 ## Share a sound
 
 Adjust the Advanced controls. The settings are encoded into the `FartID` query parameter using URL-safe base64. Copy the page URL and open it elsewhere to restore the same settings.
-
-## GitHub Pages
-
-This repository is designed for project-site hosting from the `gh-pages` branch:
-
-1. Push the branch to a GitHub repository.
-2. In the repository settings, open **Pages**.
-3. Select **Deploy from a branch**, choose `gh-pages`, and select the root folder.
-4. Open the generated Pages URL.
-
-All application resources use relative paths, so the app works when hosted beneath a repository path. A custom domain is not configured by default; add a `CNAME` file only when one is selected.
