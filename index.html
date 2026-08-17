@@ -35,10 +35,16 @@
     </section>
 
     <!-- Advanced controls are hidden until requested so the primary action stays clear. -->
-    <button class="advanced-toggle" id="advanced-toggle" type="button" aria-expanded="false" aria-controls="advanced-panel">
-      <span class="toggle-icon" aria-hidden="true">+</span>
-      <span>Advanced controls</span>
-    </button>
+    <div class="main-actions" aria-label="Sound actions">
+      <button class="advanced-toggle" id="advanced-toggle" type="button" aria-expanded="false" aria-controls="advanced-panel">
+        <span class="toggle-icon" aria-hidden="true">+</span>
+        <span>Controls</span>
+      </button>
+      <button class="share-button" id="share-button" type="button" title="Copy shareable FartID URL">
+        <span class="action-icon" aria-hidden="true">↗</span>
+        <span>Share</span>
+      </button>
+    </div>
 
     <aside class="advanced-panel" id="advanced-panel" aria-label="Advanced sound controls" hidden>
       <!-- Each range maps to one field in the settings object and FartID. -->
@@ -47,7 +53,11 @@
           <p class="section-label">Sound architecture</p>
           <h2>Make it yours</h2>
         </div>
-        <button class="close-panel" id="close-panel" type="button" aria-label="Close advanced controls">&times;</button>
+        <div class="panel-actions">
+          <button class="icon-button" id="reset-settings" type="button" aria-label="Reset settings" title="Reset settings">↶</button>
+          <button class="icon-button" id="panel-share-button" type="button" aria-label="Share settings" title="Copy shareable FartID URL">↗</button>
+          <button class="icon-button close-panel" id="close-panel" type="button" aria-label="Close advanced controls" title="Close advanced controls">&times;</button>
+        </div>
       </div>
       <div class="control-grid">
         <label class="control" for="frequency">

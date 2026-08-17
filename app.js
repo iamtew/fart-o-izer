@@ -80,6 +80,37 @@
     window.history.replaceState({}, '', url);
   }
 
+  async function copyShareUrl() {
+    const shareUrl = new URL(window.location.href);
+    shareUrl.searchParams.set(PARAMETER, encodeSettings());
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareUrl.toString());
+      } else {
+        const copyTarget = document.createElement('textarea');
+        copyTarget.value = shareUrl.toString();
+        copyTarget.setAttribute('readonly', '');
+        copyTarget.style.position = 'fixed';
+        copyTarget.style.opacity = '0';
+        document.body.appendChild(copyTarget);
+        copyTarget.select();
+        if (!document.execCommand('copy')) throw new Error('Clipboard access was denied.');
+        copyTarget.remove();
+      }
+      setStatus('Share link copied to the clipboard.');
+    } catch (error) {
+      setStatus('Could not copy the share link.');
+    }
+  }
+
+  function resetSettings(flatulenceFactory) {
+    settings = { ...defaults };
+    syncControls();
+    updateUrl();
+    flatulenceFactory.setGain(settings.gain);
+    setStatus('Settings reset to factory defaults.');
+  }
+
   function setStatus(message) {
     document.getElementById('status').textContent = message;
   }
@@ -127,7 +158,10 @@
     }
     syncControls();
     document.getElementById('fart-button').addEventListener('click', () => playFart(flatulenceFactory));
+    document.getElementById('share-button').addEventListener('click', copyShareUrl);
     document.getElementById('advanced-toggle').addEventListener('click', () => togglePanel(true));
+    document.getElementById('reset-settings').addEventListener('click', () => resetSettings(flatulenceFactory));
+    document.getElementById('panel-share-button').addEventListener('click', copyShareUrl);
     document.getElementById('close-panel').addEventListener('click', () => togglePanel(false));
   }
 
