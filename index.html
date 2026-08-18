@@ -13,6 +13,7 @@
 </head>
 <body>
   <main class="app-shell">
+    <div class="primary-column">
     <!-- Branding and the primary sound action. -->
     <header class="masthead">
       <p class="eyebrow">Personal atmospheric sound lab</p>
@@ -28,8 +29,8 @@
       </div>
       <button class="fart-button" id="fart-button" type="button" aria-label="Play fart sound">
         <span class="button-ring" aria-hidden="true"></span>
-        <span class="button-word">FART</span>
-        <span class="button-subtitle">engage</span>
+        <span class="button-ripple" id="fart-ripple" aria-hidden="true"></span>
+        <img class="fart-mascot" id="fart-mascot" src="img/McButtface.png" alt="" aria-hidden="true">
       </button>
       <p class="status" id="status" role="status" aria-live="polite">Audio is waiting for your first press.</p>
     </section>
@@ -56,7 +57,7 @@
           <span class="section-label">Fart Recording</span>
           <span class="recording-chevron" aria-hidden="true">⌄</span>
         </button>
-        <button class="icon-button" id="close-recording" type="button" aria-label="Close fart recording" title="Close fart recording">&times;</button>
+        <button class="icon-button" id="close-recording" type="button" aria-label="Close fart recording" title="Close fart recording"><span class="icon-cross" aria-hidden="true">+</span></button>
       </div>
       <div class="recording-details" id="recording-details">
         <div class="recording-line recording-line-countdown" id="recording-line">
@@ -66,6 +67,7 @@
         <p class="recording-explainer">Recording stops after 1 second of silence once a fart signal is detected, or automatically at the 10 second hard limit.</p>
       </div>
     </section>
+    </div>
 
     <aside class="advanced-panel" id="advanced-panel" aria-label="Advanced sound controls" hidden>
       <!-- Each range maps to one field in the settings object and FartID. -->
@@ -76,8 +78,7 @@
         </div>
         <div class="panel-actions">
           <button class="icon-button" id="reset-settings" type="button" aria-label="Reset settings" title="Reset settings">↶</button>
-          <button class="icon-button" id="panel-share-button" type="button" aria-label="Share settings" title="Copy shareable FartID URL">↗</button>
-          <button class="icon-button close-panel" id="close-panel" type="button" aria-label="Close advanced controls" title="Close advanced controls">&times;</button>
+          <button class="icon-button close-panel" id="close-panel" type="button" aria-label="Close advanced controls" title="Close advanced controls"><span class="icon-cross" aria-hidden="true">+</span></button>
         </div>
       </div>
       <div class="control-grid">

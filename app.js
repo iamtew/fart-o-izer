@@ -116,6 +116,23 @@
     setStatus('Settings reset to factory defaults.');
   }
 
+  let lungeSide = 'right';
+
+  function triggerLunge() {
+    const mascot = document.getElementById('fart-mascot');
+    mascot.classList.remove('lunge-left', 'lunge-right');
+    void mascot.offsetWidth; // force reflow so the animation restarts if clicked mid-cycle
+    mascot.classList.add(lungeSide === 'right' ? 'lunge-right' : 'lunge-left');
+    lungeSide = lungeSide === 'right' ? 'left' : 'right';
+  }
+
+  function triggerRipple() {
+    const ripple = document.getElementById('fart-ripple');
+    ripple.classList.remove('is-active');
+    void ripple.offsetWidth; // force reflow so the animation restarts if clicked mid-cycle
+    ripple.classList.add('is-active');
+  }
+
   function setStatus(message) {
     document.getElementById('status').textContent = message;
   }
@@ -125,6 +142,14 @@
     const toggle = document.getElementById('advanced-toggle');
     panel.hidden = !open;
     toggle.setAttribute('aria-expanded', String(open));
+    document.body.classList.toggle('panel-open', open);
+    if (open && window.matchMedia('(max-width: 759.98px)').matches) {
+      // Keep Record/Controls/Share visible above the sheet by measuring where they end.
+      const actionsBottom = document.querySelector('.main-actions').getBoundingClientRect().bottom;
+      panel.style.top = `${actionsBottom + 8}px`;
+    } else {
+      panel.style.top = '';
+    }
     if (open) document.getElementById('frequency').focus({ preventScroll: true });
   }
 
@@ -338,12 +363,15 @@
       else setStatus('That FartID was not recognized; defaults loaded.');
     }
     syncControls();
-    document.getElementById('fart-button').addEventListener('click', () => playFart(flatulenceFactory));
+    document.getElementById('fart-button').addEventListener('click', () => {
+      triggerLunge();
+      triggerRipple();
+      playFart(flatulenceFactory);
+    });
     document.getElementById('record-button').addEventListener('click', () => startRecording(flatulenceFactory));
     document.getElementById('share-button').addEventListener('click', copyShareUrl);
     document.getElementById('advanced-toggle').addEventListener('click', () => togglePanel(true));
     document.getElementById('reset-settings').addEventListener('click', () => resetSettings(flatulenceFactory));
-    document.getElementById('panel-share-button').addEventListener('click', copyShareUrl);
     document.getElementById('close-panel').addEventListener('click', () => togglePanel(false));
     document.getElementById('recording-collapse').addEventListener('click', () => {
       const section = document.getElementById('recording-section');
