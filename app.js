@@ -5,12 +5,19 @@
   // kept in flatulence_factory.js and is accessed through its small API.
   const PARAMETER = 'FartID';
   const VERSION = 1;
-  const defaults = { frequency: 58, noise: 0.42, cutoff: 720, decay: 0.62, rate: 4.2, depth: 0.32, gain: 0.48 };
+  const defaults = {
+    frequency: 58, noise: 0.42, cutoff: 720, decay: 0.62, rate: 4.2, depth: 0.32, gain: 0.48,
+    cheekClapz: false, cheekClapzSpeed: 8, sphincterShift: 0
+  };
   const ranges = {
     frequency: [35, 110], noise: [0, 1], cutoff: [180, 1800], decay: [0.18, 1.4],
-    rate: [1, 12], depth: [0, 1], gain: [0.15, 0.8]
+    rate: [1, 12], depth: [0, 1], gain: [0.15, 0.8],
+    cheekClapzSpeed: [2, 24], sphincterShift: [-1, 1]
   };
-  const keys = { frequency: 'f', noise: 'n', cutoff: 'c', decay: 'd', rate: 'r', depth: 'l', gain: 'g' };
+  const keys = {
+    frequency: 'f', noise: 'n', cutoff: 'c', decay: 'd', rate: 'r', depth: 'l', gain: 'g',
+    cheekClapz: 'z', cheekClapzSpeed: 's', sphincterShift: 'p'
+  };
   const controls = {};
   const outputs = {};
   let settings = { ...defaults };
@@ -27,7 +34,13 @@
     decay: value => `${Number(value).toFixed(2)} s`,
     rate: value => `${Number(value).toFixed(1)} Hz`,
     depth: value => `${Math.round(value * 100)}%`,
-    gain: value => `${Math.round(value * 100)}%`
+    gain: value => `${Math.round(value * 100)}%`,
+    cheekClapzSpeed: value => `${Number(value).toFixed(1)} Hz`,
+    sphincterShift: value => {
+      if (Math.abs(value) < 0.02) return 'neutral';
+      const label = value < 0 ? 'dive' : 'whistle';
+      return `${label} ${Math.round(Math.abs(value) * 100)}%`;
+    }
   };
 
   // Keep slider values inside the same bounds used by the HTML controls and
@@ -42,6 +55,7 @@
       const value = Number(candidate[name]);
       clean[name] = Number.isFinite(value) ? clamp(value, ranges[name]) : defaults[name];
     });
+    clean.cheekClapz = candidate.cheekClapz === true || candidate.cheekClapz === 1 || candidate.cheekClapz === '1';
     return clean;
   }
 
@@ -77,6 +91,9 @@
       controls[name].value = settings[name];
       outputs[name].textContent = formatters[name](settings[name]);
     });
+    const cheekClapz = document.getElementById('cheekClapz');
+    cheekClapz.checked = settings.cheekClapz;
+    document.getElementById('cheekClapzSpeed').disabled = !settings.cheekClapz;
   }
 
   function updateUrl() {
@@ -349,6 +366,13 @@
         updateUrl();
         if (name === 'gain') flatulenceFactory.setGain(settings.gain);
       });
+    });
+
+    const cheekClapz = document.getElementById('cheekClapz');
+    cheekClapz.addEventListener('change', event => {
+      settings.cheekClapz = event.target.checked;
+      document.getElementById('cheekClapzSpeed').disabled = !settings.cheekClapz;
+      updateUrl();
     });
 
     // Restore shared settings before the controls are synchronized.

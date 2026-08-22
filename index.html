@@ -99,6 +99,22 @@
           <span class="control-description">Overall level</span>
           <input id="gain" type="range" min="0.15" max="0.8" step="0.01" value="0.48">
         </label>
+        <div class="control control-effect">
+          <span class="control-heading">
+            <label class="control-toggle" for="cheekClapz">
+              <input id="cheekClapz" type="checkbox">
+              <span>Cheek Clapz</span>
+            </label>
+            <output id="cheekClapzSpeed-value" for="cheekClapzSpeed"></output>
+          </span>
+          <span class="control-description">Stutter repeater</span>
+          <input id="cheekClapzSpeed" type="range" min="2" max="24" step="0.5" value="8" aria-label="Cheek Clapz speed">
+        </div>
+        <label class="control control-effect" for="sphincterShift">
+          <span class="control-heading"><span>Sphincter Shift</span><output id="sphincterShift-value" for="sphincterShift"></output></span>
+          <span class="control-description">Pitch dive ← neutral → whistle</span>
+          <input id="sphincterShift" class="bipolar" type="range" min="-1" max="1" step="0.01" value="0">
+        </label>
       </div>
       <p class="share-note">Your controls are encoded into the page URL as <strong>FartID</strong>.</p>
     </aside>

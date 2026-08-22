@@ -272,6 +272,69 @@ h2 {
 .control-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; font-weight: 700; }
 .control-heading output { color: var(--green-light); font-variant-numeric: tabular-nums; }
 .control-description { color: var(--muted); font-size: 0.75rem; }
+.control-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  cursor: pointer;
+}
+.control-toggle input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+  border: 2px solid var(--brown-light);
+  border-radius: 0.28rem;
+  background: color-mix(in srgb, var(--brown-deep) 55%, var(--panel));
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.control-toggle input[type="checkbox"]:checked {
+  border-color: var(--green-light);
+  background:
+    linear-gradient(135deg, transparent 55%, var(--green-light) 55%, var(--green-light) 70%, transparent 70%),
+    linear-gradient(45deg, transparent 40%, var(--green-light) 40%, var(--green-light) 58%, transparent 58%),
+    color-mix(in srgb, var(--green-deep) 45%, var(--panel));
+  background-size: 100% 100%;
+}
+.control-effect:has(#cheekClapz:not(:checked)) #cheekClapzSpeed {
+  opacity: 0.45;
+  pointer-events: none;
+}
+input[type="range"].bipolar {
+  background: linear-gradient(
+    to right,
+    var(--brown) 0%,
+    var(--brown-deep) 48%,
+    var(--line) 48%,
+    var(--line) 52%,
+    var(--brown-deep) 52%,
+    var(--green) 100%
+  );
+}
+input[type="range"].bipolar::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--brown) 70%, var(--panel)) 0%,
+    color-mix(in srgb, var(--brown-deep) 55%, var(--panel)) 47%,
+    var(--green-light) 47%,
+    var(--green-light) 53%,
+    color-mix(in srgb, var(--brown-deep) 55%, var(--panel)) 53%,
+    color-mix(in srgb, var(--green) 55%, var(--panel)) 100%
+  );
+}
+input[type="range"].bipolar::-moz-range-track {
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--brown) 70%, var(--panel)) 0%,
+    color-mix(in srgb, var(--brown-deep) 55%, var(--panel)) 47%,
+    var(--green-light) 47%,
+    var(--green-light) 53%,
+    color-mix(in srgb, var(--brown-deep) 55%, var(--panel)) 53%,
+    color-mix(in srgb, var(--green) 55%, var(--panel)) 100%
+  );
+}
 
 /* Custom range sliders — brown track, green thumb. */
 input[type="range"] {

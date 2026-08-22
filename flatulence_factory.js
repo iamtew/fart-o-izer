@@ -4,7 +4,9 @@
  * This module turns the numeric settings from app.js into a short-lived Web
  * Audio graph. It combines a low sawtooth oscillator for body, filtered white
  * noise for texture, envelope ramps for a natural start and fade, and an LFO
- * that moves the oscillator pitch. The graph is connected to one master gain
+ * that moves the oscillator pitch. Optional Cheek Clapz gating chops the
+ * output into a stutter, and Sphincter Shift sweeps pitch down or up based
+ * on a bipolar control. The graph is connected to one master gain
  * node so the UI can change overall volume without knowing anything about
  * Web Audio internals.
  *
@@ -63,10 +65,12 @@
       const noiseGain = audioContext.createGain();
       const lfo = audioContext.createOscillator();
       const lfoGain = audioContext.createGain();
+      const disposable = [body, bodyGain, filter, noise, noiseGain, lfo, lfoGain];
 
       // The body is the tonal low end, shaped by its gain envelope and filter.
       body.type = 'sawtooth';
-      body.frequency.setValueAtTime(settings.frequency * (0.92 + Math.random() * 0.16), now);
+      const startFrequency = settings.frequency * (0.92 + Math.random() * 0.16);
+      body.frequency.setValueAtTime(startFrequency, now);
       body.detune.setValueAtTime((Math.random() - 0.5) * 20, now);
       filter.type = 'lowpass';
       filter.frequency.setValueAtTime(settings.cutoff, now);
@@ -86,8 +90,52 @@
       lfo.frequency.setValueAtTime(settings.rate, now);
       lfoGain.gain.setValueAtTime(settings.depth * 180, now);
       lfo.connect(lfoGain).connect(body.detune);
-      body.connect(bodyGain).connect(filter).connect(masterGain);
+
+      // Sphincter Shift bends pitch down (left) or up (right); magnitude is speed.
+      const shift = Number(settings.sphincterShift) || 0;
+      if (Math.abs(shift) >= 0.02) {
+        const intensity = Math.min(1, Math.abs(shift));
+        const direction = Math.sign(shift);
+        const endFrequency = Math.max(28, Math.min(1400, startFrequency * Math.pow(2, direction * (0.35 + intensity * 1.4))));
+        const sweepSeconds = Math.max(0.05, duration * (1.02 - intensity * 0.92));
+        body.frequency.exponentialRampToValueAtTime(endFrequency, now + sweepSeconds);
+      }
+
+      body.connect(bodyGain).connect(filter);
       noise.connect(noiseGain).connect(filter);
+
+      // Cheek Clapz: soft-edged amplitude chops (avoids square-gate clicks).
+      // Short on-bursts with quiet gaps read as cheek claps / stutter repeats.
+      // Each hit also gets a tiny detune smack so it feels percussive, not just muted.
+      if (settings.cheekClapz) {
+        const gate = audioContext.createGain();
+        const speed = Math.max(2, settings.cheekClapzSpeed || 8);
+        const period = 1 / speed;
+        const attack = Math.min(0.004, period * 0.12);
+        const release = Math.min(0.006, period * 0.18);
+        const onTime = Math.max(attack + release + 0.008, period * 0.38);
+        const end = now + duration + 0.04;
+        gate.gain.setValueAtTime(0.0001, now);
+        for (let t = now; t < end; t += period) {
+          const peak = Math.min(t + attack, end);
+          const holdEnd = Math.min(t + onTime - release, end);
+          const off = Math.min(t + onTime, end);
+          gate.gain.setValueAtTime(0.0001, t);
+          gate.gain.linearRampToValueAtTime(1, peak);
+          if (holdEnd > peak) gate.gain.setValueAtTime(1, holdEnd);
+          if (off > holdEnd) gate.gain.linearRampToValueAtTime(0.0001, off);
+
+          // Brief upward detune blip at each clap onset.
+          const smack = Math.min(t + 0.018, end);
+          body.detune.setValueAtTime(35, t);
+          body.detune.linearRampToValueAtTime(0, smack);
+        }
+        filter.connect(gate).connect(masterGain);
+        disposable.push(gate);
+      } else {
+        filter.connect(masterGain);
+      }
+
       body.start(now);
       noise.start(now);
       lfo.start(now);
@@ -97,7 +145,7 @@
 
       // Disconnect nodes after playback so repeated presses do not leave
       // finished graphs attached to the audio context.
-      window.setTimeout(() => [body, bodyGain, filter, noise, noiseGain, lfo, lfoGain].forEach(node => node.disconnect()), (duration + 0.2) * 1000);
+      window.setTimeout(() => disposable.forEach(node => node.disconnect()), (duration + 0.2) * 1000);
       masterGain.gain.setTargetAtTime(settings.gain, now, 0.01);
     }
 
