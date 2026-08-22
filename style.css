@@ -16,6 +16,7 @@
   --brown-deep: #5c3a1f;
   --brown-light: #c98a4f;
   --shadow: rgba(0, 0, 0, 0.45);
+  --hero-bg-size: 50% auto;
 }
 
 * { box-sizing: border-box; }
@@ -29,6 +30,7 @@ body {
   margin: 0;
   color: var(--ink);
   background:
+    url("img/herobg.png") left bottom / var(--hero-bg-size) no-repeat,
     radial-gradient(circle at 50% 38%, rgba(63, 94, 53, 0.22), transparent 38rem),
     radial-gradient(circle at 18% 88%, rgba(138, 90, 52, 0.08), transparent 18rem),
     linear-gradient(135deg, #141210 0%, #17140f 55%, #0c0b09 100%);
@@ -321,6 +323,7 @@ input[type="range"]::-moz-range-thumb {
 @keyframes panel-in { from { transform: translateY(1rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
 @media (min-width: 760px) {
+  body { --hero-bg-size: 25% auto; }
   .app-shell { padding: 3rem 3rem 4rem; }
   .console { min-height: 35rem; }
   .primary-column { transition: margin-right 220ms ease; }
