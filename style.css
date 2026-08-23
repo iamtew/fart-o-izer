@@ -1,7 +1,30 @@
+/*
+ * Styles for the FART-O-IZER 6000.
+ * Making flatulence look classy since... well, about five minutes ago.
+ *
+ * Visual system: dark workshop atmosphere, brown circular launch control as the
+ * focal point, olive-green accents for labels and interactive highlights.
+ * (Think artisanal restroom, not gas station.)
+ *
+ * Layout model:
+ *   .app-shell (full viewport column, max-width centered)
+ *     └── .primary-column (masthead + console + action bar + recording panel)
+ *     └── .advanced-panel (settings sheet — position varies by breakpoint)
+ *     └── .panel-backdrop (mobile dim overlay)
+ *
+ * Responsive strategy:
+ *   Desktop (≥760px): advanced panel slides in from the right as a fixed side sheet;
+ *     primary column shrinks via margin-right when panel-open.
+ *   Mobile (<760px): panel is a bottom sheet; when open it becomes in-flow below
+ *     a compressed console so controls stay reachable without covering the button.
+ *
+ * Animation classes (.lunge-out-*, .jiggle-*, .is-active on ripple) are toggled
+ * by app.js to match press-and-hold audio playback. McButtface earns his overtime.
+ */
 @import url('https://fonts.cdnfonts.com/css/londrina-solid');
 @import url('https://fonts.cdnfonts.com/css/flapdoodle');
 
-/* Shared palette and dimensions keep the console visually coherent. */
+/* --- Design tokens (the color palette of questionable choices) --- */
 :root {
   color-scheme: dark;
   --ink: #f4efe6;
@@ -21,7 +44,7 @@
 
 * { box-sizing: border-box; }
 
-/* The page uses a dark workshop atmosphere behind the brown launch control. */
+/* --- Base page & typography (set the mood before the mood hits) --- */
 html { min-width: 320px; background: #141210; }
 
 body {
@@ -41,6 +64,7 @@ body {
 button, input { font: inherit; }
 button { color: inherit; }
 
+/* --- App shell & masthead (the signage above the stall) --- */
 .app-shell {
   position: relative;
   display: flex;
@@ -79,6 +103,7 @@ h1 {
 h1 span { color: var(--brown-light); }
 .tagline { margin-bottom: 0; color: var(--muted); font-size: 1rem; }
 
+/* --- Console (center stage — where dignity goes to die) --- */
 .console {
   position: relative;
   display: flex;
@@ -90,7 +115,7 @@ h1 span { color: var(--brown-light); }
   min-height: 0;
   text-align: center;
 }
-/* Soft glow behind the launch button — echoes the mascot's olive cap. */
+/* Soft glow behind the launch button — McButtface's halo, if you will. */
 .console::before {
   content: '';
   position: absolute;
@@ -107,6 +132,7 @@ h1 span { color: var(--brown-light); }
 .console-copy { position: relative; z-index: 1; order: 0; }
 .hint { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.9rem; }
 
+/* --- FART button (the big brown commit button — handle with care) --- */
 /* The round button is the visual and interaction center of the application. */
 .fart-button {
   position: relative;
@@ -135,7 +161,7 @@ h1 span { color: var(--brown-light); }
 .button-ring { position: absolute; inset: 7%; border: 1px solid rgba(18, 22, 16, 0.2); border-radius: 50%; }
 .fart-mascot { position: relative; display: block; width: 73%; height: auto; margin: 0 auto; object-fit: contain; pointer-events: none; transform: translate(0, 0); filter: drop-shadow(0 0.35rem 0.6rem rgba(0, 0, 0, 0.28)); }
 
-/* Ripple ring that expands from the button rim and flickers as it fades out. */
+/* Ripple ring — shockwave for everyone downwind. */
 .button-ripple { position: absolute; inset: 0; border: 3px solid var(--brown-light); border-radius: 50%; opacity: 0; pointer-events: none; }
 .button-ripple.is-active { animation: fart-ripple 650ms ease-out; }
 @keyframes fart-ripple {
@@ -143,6 +169,7 @@ h1 span { color: var(--brown-light); }
   100% { transform: scale(1.6); opacity: 0; filter: blur(7px); }
 }
 
+/* --- Mascot hold animations (McButtface lunges; app.js pulls the strings) --- */
 /* Lunges out to the rim, then jiggles in place while the note is held. */
 @keyframes fart-lunge-out-right {
   0% { transform: translate(0, 0); }
@@ -176,6 +203,7 @@ h1 span { color: var(--brown-light); }
 .fart-mascot.jiggle-left { animation: fart-jiggle-left 110ms linear infinite; }
 .status { position: relative; z-index: 1; min-height: 1.25rem; margin: 0; color: var(--muted); font-size: 0.82rem; }
 
+/* --- Action bar (record, controls, share — the accessory tray) --- */
 .main-actions { position: relative; z-index: 1; display: flex; justify-content: center; align-items: center; gap: 0.65rem; min-height: 2.75rem; }
 .record-button, .share-button, .advanced-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 0.55rem; }
 .record-button, .share-button, .advanced-toggle {
@@ -199,6 +227,7 @@ h1 span { color: var(--brown-light); }
 .toggle-icon { display: inline-grid; place-items: center; width: 1.2rem; height: 1.2rem; color: var(--green-light); font-size: 1.25rem; line-height: 1; transition: transform 180ms ease; }
 .advanced-toggle[aria-expanded="true"] .toggle-icon { transform: rotate(45deg); }
 
+/* --- Recording result panel (exhibit A for the prosecution) --- */
 .recording-section {
   width: min(100%, 30rem);
   margin: 0.85rem auto 0;
@@ -216,6 +245,7 @@ h1 span { color: var(--brown-light); }
 .recording-line { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; min-height: 1.2rem; }
 .recording-details strong { color: var(--ink); }
 .recording-details a { color: var(--green-light); }
+/* Line states (countdown / active / complete) — set by app.js showRecordingSection */
 .recording-line-countdown a, .recording-line-active a { color: var(--muted); font-style: italic; }
 .recording-line-active a { animation: recording-blink 900ms ease-in-out infinite alternate; }
 .recording-duration { flex-shrink: 0; }
@@ -225,7 +255,8 @@ h1 span { color: var(--brown-light); }
 @keyframes record-countdown { from { opacity: 0.42; } to { opacity: 1; } }
 @keyframes recording-blink { from { opacity: 0.45; } to { opacity: 1; } }
 
-/* Dim the page behind the mobile bottom sheet. */
+/* --- Advanced controls panel (fine-tune your flatulence in private) --- */
+/* Dim the page behind the mobile bottom sheet — privacy curtain, of sorts. */
 .panel-backdrop {
   position: fixed;
   inset: 0;
@@ -236,7 +267,7 @@ h1 span { color: var(--brown-light); }
   animation: backdrop-in 180ms ease both;
 }
 
-/* The panel becomes a bottom sheet on small screens and a side sheet on desktop. */
+/* The panel: bottom sheet on phones, side stall on desktop. */
 .advanced-panel {
   position: fixed;
   z-index: 5;
@@ -277,6 +308,8 @@ h2 {
 }
 .icon-button:hover { border-color: var(--green-deep); color: var(--green-light); background: var(--panel-light); }
 .icon-cross { display: inline-block; transform: rotate(45deg); font-size: 1.35rem; line-height: 1; }
+
+/* Slider cards — one knob per setting, all equally incriminating */
 .control-grid { display: grid; gap: 0.85rem; max-width: 42rem; margin: 0 auto; }
 .control {
   display: grid;
@@ -315,10 +348,13 @@ h2 {
     color-mix(in srgb, var(--green-deep) 45%, var(--panel));
   background-size: 100% 100%;
 }
+/* Cheek Clapz speed slider: no clap toggle, no clap for you */
 .control-effect:has(#cheekClapz:not(:checked)) #cheekClapzSpeed {
   opacity: 0.45;
   pointer-events: none;
 }
+
+/* Sphincter Shift bipolar slider — brown = dive, green = whistle. You know the drill. */
 input[type="range"].bipolar {
   background: linear-gradient(
     to right,
@@ -353,7 +389,7 @@ input[type="range"].bipolar::-moz-range-track {
   );
 }
 
-/* Custom range sliders — brown track, green thumb. */
+/* Custom range sliders — brown track, green thumb. Toilet chic. */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -402,6 +438,7 @@ input[type="range"]::-moz-range-thumb {
 @keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes panel-in { from { transform: translateY(1rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
+/* --- Responsive: desktop side sheet (slide open the privy door) --- */
 @media (min-width: 760px) {
   body { --hero-bg-size: 25% auto; }
   .app-shell { padding: 1.25rem 2rem 1.5rem; }
@@ -425,6 +462,7 @@ input[type="range"]::-moz-range-thumb {
   @keyframes panel-in-desktop { from { transform: translateX(1rem); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 }
 
+/* --- Responsive: mobile panel-open (squish the console, keep the throne visible) --- */
 @media (max-width: 759.98px) {
   .console {
     flex: 0 1 auto;
@@ -466,6 +504,7 @@ input[type="range"]::-moz-range-thumb {
   }
 }
 
+/* --- Short viewport tweaks (for cramped stalls and small screens) --- */
 @media (max-height: 800px) {
   .app-shell { padding: 0.65rem 1rem 0.85rem; }
   .console { gap: 0.5rem; }
@@ -473,4 +512,5 @@ input[type="range"]::-moz-range-thumb {
   body { --hero-bg-size: 22% auto; }
 }
 
+/* --- Accessibility (reduced motion — some prefer a dignified, silent toot) --- */
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }

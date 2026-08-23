@@ -1,8 +1,34 @@
+/*
+ * UI controller for the FART-O-IZER 6000.
+ * Front-of-house operations: buttons, sliders, and socially unacceptable sharing.
+ *
+ * Owns application state, DOM wiring, visual feedback, URL sharing (FartID),
+ * and WAV recording orchestration. All audio synthesis lives in
+ * flatulence_factory.js; this file talks to it only through the small factory
+ * API (start, stop, setGain, startCapture, getRMS, stopCapture).
+ *
+ * Boot flow:
+ *   initialize()
+ *     → createFlatulenceFactory()
+ *     → wire range inputs and buttons
+ *     → decode ?FartID= from the URL (if present) into settings
+ *     → syncControls() to reflect settings in the DOM
+ *     → attach FART hold/release, record, share, and panel handlers
+ *
+ * Runtime flow:
+ *   Slider change → update settings + URL + (gain) live audio
+ *   FART press    → beginHold → factory.start(settings) + mascot/ripple
+ *   FART release  → endHold   → factory.stop() + mascot return
+ *   Record        → countdown → capture tap → auto-stop on silence/max → WAV download
+ *
+ * Remember: he who smelt it, dealt it — but he who shared the FartID, shared it.
+ */
 (() => {
   'use strict';
 
-  // app.js owns application state and the interface. Audio implementation is
-  // kept in flatulence_factory.js and is accessed through its small API.
+  // --- Settings model (the recipe card for each toot) ---
+  // defaults/ranges mirror the HTML range inputs. keys maps each setting to a
+  // single-letter key in the shareable FartID payload — compact, like pocket air.
   const PARAMETER = 'FartID';
   const VERSION = 1;
   const defaults = {
@@ -21,6 +47,8 @@
   const controls = {};
   const outputs = {};
   let settings = { ...defaults };
+
+  // --- Recording state (the black box flight recorder for gas) ---
   const RECORDING_MAX_MS = 60000;
   const SILENCE_STOP_MS = 1000;
   const recording = {
@@ -29,6 +57,7 @@
   };
   let lastBlob;
 
+  // Labels beside sliders — so users know exactly how offensive they're being.
   const formatters = {
     frequency: value => `${Math.round(value)} Hz`,
     noise: value => `${Math.round(value * 100)}%`,
@@ -45,8 +74,7 @@
     }
   };
 
-  // Keep slider values inside the same bounds used by the HTML controls and
-  // by settings restored from a shared URL.
+  // Clamp values — even creativity has a ceiling (and a floor).
   function clamp(value, [minimum, maximum]) {
     return Math.min(maximum, Math.max(minimum, value));
   }
@@ -61,7 +89,8 @@
     return clean;
   }
 
-  // Compact keys and base64url keep the shareable FartID short and URL-safe.
+  // --- FartID sharing (send your masterpiece to innocent bystanders) ---
+  // Compact keys and base64url — short enough to slip into a group chat unnoticed. Almost.
   function encodeSettings() {
     const payload = { v: VERSION };
     Object.keys(keys).forEach(name => { payload[keys[name]] = settings[name]; });
@@ -87,6 +116,7 @@
     }
   }
 
+  // --- UI sync (make the knobs match the crime) ---
   // Reflect the current settings in both the range inputs and their labels.
   function syncControls() {
     Object.keys(controls).forEach(name => {
@@ -135,6 +165,8 @@
     setStatus('Settings reset to factory defaults.');
   }
 
+  // --- Mascot and ripple (McButtface does the heavy lifting) ---
+  // Alternates left/right lunges — switch cheeks, switch sides, switch allegiances.
   let lungeSide = 'right';
 
   function clearMascotAnimation(mascot) {
@@ -145,7 +177,7 @@
   function beginMascotHold() {
     const mascot = document.getElementById('fart-mascot');
     clearMascotAnimation(mascot);
-    void mascot.offsetWidth;
+    void mascot.offsetWidth; // reflow — restart animation, don't stall mid-lunge
     const side = lungeSide;
     lungeSide = lungeSide === 'right' ? 'left' : 'right';
     const outClass = side === 'right' ? 'lunge-out-right' : 'lunge-out-left';
@@ -160,6 +192,7 @@
     }, { once: true });
   }
 
+  // Return McButtface to center — the walk of shame, animated smoothly.
   function endMascotHold() {
     const mascot = document.getElementById('fart-mascot');
     const matrix = new DOMMatrix(getComputedStyle(mascot).transform);
@@ -178,7 +211,7 @@
   function triggerRipple() {
     const ripple = document.getElementById('fart-ripple');
     ripple.classList.remove('is-active');
-    void ripple.offsetWidth; // force reflow so the animation restarts if clicked mid-cycle
+    void ripple.offsetWidth; // reflow — every press deserves a fresh shockwave
     ripple.classList.add('is-active');
   }
 
@@ -198,6 +231,7 @@
     if (open) document.getElementById('frequency').focus({ preventScroll: true });
   }
 
+  // --- FART press-and-hold (commit when ready, release when brave) ---
   let isHolding = false;
   let activePointerId = null;
 
@@ -220,6 +254,7 @@
     }
   }
 
+  // Ignore stray pointerup — wrong finger, wrong cheek, wrong life choice.
   function endHold(flatulenceFactory, fartButton, pointerId = null) {
     if (!isHolding) return;
     if (pointerId !== null && activePointerId !== null && pointerId !== activePointerId) return;
@@ -231,10 +266,12 @@
     setStatus('Fart deployed. Adjust the controls and try again.');
   }
 
+  // --- WAV export (bottling the atmosphere for posterity) ---
   function writeString(view, offset, value) {
     for (let index = 0; index < value.length; index += 1) view.setUint8(offset + index, value.charCodeAt(index));
   }
 
+  // Hand-rolled RIFF writer — no npm, no dependencies, no dignity either.
   function encodeWav(samples, sampleRate) {
     const bytesPerSample = 2;
     const dataSize = samples.length * bytesPerSample;
@@ -345,12 +382,13 @@
     }
   }
 
+  // Record button: start, stop, or chicken out during the countdown.
   async function startRecording(flatulenceFactory) {
     if (recording.stopping) {
       setStatus('Finishing the previous recording. Try again in a moment.');
       return;
     }
-    // Record doubles as stop: cancel countdown, or end an active/starting session.
+    // Record doubles as stop — same button, different levels of regret.
     if (recording.active || recording.countingDown) {
       recording.stopRequested = true;
       if (recording.countingDown) {
@@ -382,14 +420,14 @@
     showRecordingSection(0, 'active');
     try {
       await flatulenceFactory.startCapture(settings.gain);
-      // Clear starting before the stop check so a mid-start Record press cannot
-      // race past stopRequested and leave capture running without a stop path.
+      // Race guard — don't leave the recorder running with no way to pull the chain.
       recording.starting = false;
       if (recording.stopRequested) {
         await stopRecording(flatulenceFactory, 'manual');
         return;
       }
       recording.maxTimer = window.setTimeout(() => stopRecording(flatulenceFactory, 'maximum'), RECORDING_MAX_MS);
+      // Poll RMS — auto-stop when the room has aired out (1s of silence).
       recording.rmsTimer = window.setInterval(() => {
         const rms = flatulenceFactory.getRMS();
         if (rms >= 0.01) {
@@ -412,9 +450,9 @@
     }
   }
 
+  // --- Initialization (open the stall, wire the throne) ---
   function initialize() {
-    // Factory creation is inexpensive and does not start audio. The audio
-    // context itself is still created lazily on the first FART press.
+    // Factory is cheap to create; actual audio waits for the first brave press.
     const flatulenceFactory = window.createFlatulenceFactory();
     Object.keys(ranges).forEach(name => {
       controls[name] = document.getElementById(name);
@@ -434,7 +472,7 @@
       updateUrl();
     });
 
-    // Restore shared settings before the controls are synchronized.
+    // Restore shared FartID — inherit someone else's gas legacy.
     const encoded = new URLSearchParams(window.location.search).get(PARAMETER);
     if (encoded) {
       const decoded = decodeSettings(encoded);
@@ -443,6 +481,7 @@
     }
     syncControls();
     const fartButton = document.getElementById('fart-button');
+    // Pointer capture — hold stays engaged even if you scurry off the button.
     fartButton.addEventListener('pointerdown', event => {
       if (event.button !== 0) return;
       event.preventDefault();
@@ -485,8 +524,7 @@
     });
   }
 
-  // Deferred scripts normally run before DOMContentLoaded, but initialize
-  // immediately when this file is loaded after that event has already fired.
+  // DOM ready check — don't leave users waiting with unpressed potential.
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize);
   else initialize();
 })();
