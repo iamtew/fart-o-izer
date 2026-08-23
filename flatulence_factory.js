@@ -1,23 +1,25 @@
 /*
  * The brain of the FART-O-IZER 6000: the Flatulence Factory.
  *
- * This module turns the numeric settings from app.js into a short-lived Web
- * Audio graph. It combines a low sawtooth oscillator for body, filtered white
- * noise for texture, envelope ramps for a natural start and fade, and an LFO
- * that moves the oscillator pitch. Optional Cheek Clapz gating chops the
- * output into a stutter, and Sphincter Shift sweeps pitch down or up based
- * on a bipolar control. The graph is connected to one master gain
- * node so the UI can change overall volume without knowing anything about
- * Web Audio internals.
+ * This module turns the numeric settings from app.js into a Web Audio graph.
+ * It combines a low sawtooth oscillator for body, filtered white noise for
+ * texture, envelope ramps for a natural start and fade, and an LFO that moves
+ * the oscillator pitch. Optional Cheek Clapz gating chops the output into a
+ * stutter, and Sphincter Shift sweeps pitch down or up based on a bipolar
+ * control. The graph is connected to one master gain node so the UI can change
+ * overall volume without knowing anything about Web Audio internals.
  *
- * Flow: app.js creates the factory during page setup, then passes the current
- * settings to play() after a user presses FART. The first play lazily creates
- * the browser audio context, each play schedules its own graph, and finished
- * nodes are disconnected shortly afterward. setGain() is a small live-update
- * bridge for the Master gain slider.
+ * Flow: app.js creates the factory during page setup, then calls start() when
+ * the user presses FART and stop() on release. The first start lazily creates
+ * the browser audio context; each press builds its own graph, sustains while
+ * held, fades on release, and disconnects nodes shortly afterward. setGain()
+ * is a small live-update bridge for the Master gain slider.
  */
 (() => {
   'use strict';
+
+  const MAX_HOLD_SECONDS = 60;
+  const BODY_PEAK = 0.7;
 
   function createFlatulenceFactory() {
     // These stay private so the application layer cannot accidentally build
@@ -29,9 +31,10 @@
     let captureSink;
     let captureFrames = [];
     let workletModule;
+    let activeVoice = null;
 
     // Browsers require audio startup to happen in response to a user gesture;
-    // creating the context lazily from play() satisfies that requirement.
+    // creating the context lazily from start() satisfies that requirement.
     function createAudio(gain) {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) throw new Error('Web Audio is not supported in this browser.');
@@ -44,20 +47,50 @@
     }
 
     // A fresh noise buffer gives every fart its own unrepeatable texture.
-    function createNoiseBuffer() {
-      const buffer = audioContext.createBuffer(1, Math.ceil(audioContext.sampleRate * 1.6), audioContext.sampleRate);
+    function createNoiseBuffer(durationSeconds = 1.6) {
+      const buffer = audioContext.createBuffer(1, Math.ceil(audioContext.sampleRate * durationSeconds), audioContext.sampleRate);
       const data = buffer.getChannelData(0);
       for (let index = 0; index < data.length; index += 1) data[index] = Math.random() * 2 - 1;
       return buffer;
     }
 
-    // Build and schedule one complete fart. Settings are supplied by app.js;
-    // this function deliberately has no knowledge of the DOM or URL state.
-    function play(settings) {
+    function scheduleCheekClapz(gate, body, now, end, speed) {
+      const period = 1 / speed;
+      const attack = Math.min(0.004, period * 0.12);
+      const release = Math.min(0.006, period * 0.18);
+      const onTime = Math.max(attack + release + 0.008, period * 0.38);
+      gate.gain.setValueAtTime(0.0001, now);
+      for (let t = now; t < end; t += period) {
+        const peak = Math.min(t + attack, end);
+        const holdEnd = Math.min(t + onTime - release, end);
+        const off = Math.min(t + onTime, end);
+        gate.gain.setValueAtTime(0.0001, t);
+        gate.gain.linearRampToValueAtTime(1, peak);
+        if (holdEnd > peak) gate.gain.setValueAtTime(1, holdEnd);
+        if (off > holdEnd) gate.gain.linearRampToValueAtTime(0.0001, off);
+
+        const smack = Math.min(t + 0.018, end);
+        body.detune.setValueAtTime(35, t);
+        body.detune.linearRampToValueAtTime(0, smack);
+      }
+    }
+
+    function releaseGain(gainNode, now, releaseSeconds, scale = 1) {
+      gainNode.gain.cancelScheduledValues(now);
+      const current = Math.max(0.0001, gainNode.gain.value);
+      gainNode.gain.setValueAtTime(current, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + releaseSeconds * scale);
+    }
+
+    // Build a fart voice, attack, and sustain until stop() is called.
+    function start(settings) {
+      if (activeVoice) return;
       if (!audioContext) createAudio(settings.gain);
       if (audioContext.state === 'suspended') audioContext.resume();
+
       const now = audioContext.currentTime;
-      const duration = settings.decay;
+      const releaseSeconds = settings.decay;
+      const maxHoldEnd = now + MAX_HOLD_SECONDS;
       const body = audioContext.createOscillator();
       const bodyGain = audioContext.createGain();
       const filter = audioContext.createBiquadFilter();
@@ -66,8 +99,8 @@
       const lfo = audioContext.createOscillator();
       const lfoGain = audioContext.createGain();
       const disposable = [body, bodyGain, filter, noise, noiseGain, lfo, lfoGain];
+      let gate = null;
 
-      // The body is the tonal low end, shaped by its gain envelope and filter.
       body.type = 'sawtooth';
       const startFrequency = settings.frequency * (0.92 + Math.random() * 0.16);
       body.frequency.setValueAtTime(startFrequency, now);
@@ -76,60 +109,36 @@
       filter.frequency.setValueAtTime(settings.cutoff, now);
       filter.Q.value = 2.5;
       bodyGain.gain.setValueAtTime(0.0001, now);
-      bodyGain.gain.exponentialRampToValueAtTime(0.7, now + 0.012);
-      bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      bodyGain.gain.exponentialRampToValueAtTime(BODY_PEAK, now + 0.012);
+      bodyGain.gain.setValueAtTime(BODY_PEAK, now + 0.012);
 
-      // Noise supplies the airy, splattery part of the sound and fades sooner.
-      noise.buffer = createNoiseBuffer();
+      noise.buffer = createNoiseBuffer(2);
+      noise.loop = true;
+      const noisePeak = Math.max(0.0001, settings.noise * 0.48);
       noiseGain.gain.setValueAtTime(0.0001, now);
-      noiseGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, settings.noise * 0.48), now + 0.006);
-      noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + duration * 0.72);
+      noiseGain.gain.exponentialRampToValueAtTime(noisePeak, now + 0.006);
+      noiseGain.gain.setValueAtTime(noisePeak, now + 0.006);
 
-      // The LFO adds the slow pitch wobble that makes the body feel unstable.
       lfo.type = 'sine';
       lfo.frequency.setValueAtTime(settings.rate, now);
       lfoGain.gain.setValueAtTime(settings.depth * 180, now);
       lfo.connect(lfoGain).connect(body.detune);
 
-      // Sphincter Shift bends pitch down (left) or up (right); magnitude is speed.
       const shift = Number(settings.sphincterShift) || 0;
       if (Math.abs(shift) >= 0.02) {
         const intensity = Math.min(1, Math.abs(shift));
         const direction = Math.sign(shift);
         const endFrequency = Math.max(28, Math.min(1400, startFrequency * Math.pow(2, direction * (0.35 + intensity * 1.4))));
-        const sweepSeconds = Math.max(0.05, duration * (1.02 - intensity * 0.92));
+        const sweepSeconds = Math.max(0.05, releaseSeconds * (1.02 - intensity * 0.92));
         body.frequency.exponentialRampToValueAtTime(endFrequency, now + sweepSeconds);
       }
 
       body.connect(bodyGain).connect(filter);
       noise.connect(noiseGain).connect(filter);
 
-      // Cheek Clapz: soft-edged amplitude chops (avoids square-gate clicks).
-      // Short on-bursts with quiet gaps read as cheek claps / stutter repeats.
-      // Each hit also gets a tiny detune smack so it feels percussive, not just muted.
       if (settings.cheekClapz) {
-        const gate = audioContext.createGain();
-        const speed = Math.max(2, settings.cheekClapzSpeed || 8);
-        const period = 1 / speed;
-        const attack = Math.min(0.004, period * 0.12);
-        const release = Math.min(0.006, period * 0.18);
-        const onTime = Math.max(attack + release + 0.008, period * 0.38);
-        const end = now + duration + 0.04;
-        gate.gain.setValueAtTime(0.0001, now);
-        for (let t = now; t < end; t += period) {
-          const peak = Math.min(t + attack, end);
-          const holdEnd = Math.min(t + onTime - release, end);
-          const off = Math.min(t + onTime, end);
-          gate.gain.setValueAtTime(0.0001, t);
-          gate.gain.linearRampToValueAtTime(1, peak);
-          if (holdEnd > peak) gate.gain.setValueAtTime(1, holdEnd);
-          if (off > holdEnd) gate.gain.linearRampToValueAtTime(0.0001, off);
-
-          // Brief upward detune blip at each clap onset.
-          const smack = Math.min(t + 0.018, end);
-          body.detune.setValueAtTime(35, t);
-          body.detune.linearRampToValueAtTime(0, smack);
-        }
+        gate = audioContext.createGain();
+        scheduleCheekClapz(gate, body, now, maxHoldEnd, Math.max(2, settings.cheekClapzSpeed || 8));
         filter.connect(gate).connect(masterGain);
         disposable.push(gate);
       } else {
@@ -139,18 +148,43 @@
       body.start(now);
       noise.start(now);
       lfo.start(now);
-      body.stop(now + duration + 0.04);
-      noise.stop(now + duration + 0.04);
-      lfo.stop(now + duration + 0.04);
 
-      // Disconnect nodes after playback so repeated presses do not leave
-      // finished graphs attached to the audio context.
-      window.setTimeout(() => disposable.forEach(node => node.disconnect()), (duration + 0.2) * 1000);
+      activeVoice = {
+        body, noise, lfo, bodyGain, noiseGain, gate, disposable, releaseSeconds,
+        maxHoldTimer: window.setTimeout(() => stop(), MAX_HOLD_SECONDS * 1000)
+      };
       masterGain.gain.setTargetAtTime(settings.gain, now, 0.01);
     }
 
-    // Gain changes before the first play are picked up by createAudio(); later
-    // changes are applied smoothly to the already-running master node.
+    // Release the active voice with an exponential fade, then stop and disconnect.
+    function stop() {
+      if (!activeVoice) return;
+
+      const voice = activeVoice;
+      activeVoice = null;
+      window.clearTimeout(voice.maxHoldTimer);
+
+      const now = audioContext.currentTime;
+      const release = voice.releaseSeconds;
+      const stopAt = now + release + 0.04;
+
+      releaseGain(voice.bodyGain, now, release);
+      releaseGain(voice.noiseGain, now, release, 0.72);
+      if (voice.gate) releaseGain(voice.gate, now, release);
+
+      voice.body.stop(stopAt);
+      voice.noise.stop(stopAt);
+      voice.lfo.stop(stopAt);
+
+      window.setTimeout(() => voice.disposable.forEach(node => node.disconnect()), (release + 0.2) * 1000);
+    }
+
+    // One-shot playback for callers that do not manage press/release themselves.
+    function play(settings) {
+      start(settings);
+      window.setTimeout(() => stop(), settings.decay * 1000);
+    }
+
     function setGain(gain) {
       if (masterGain) masterGain.gain.setTargetAtTime(gain, audioContext.currentTime, 0.02);
     }
@@ -208,7 +242,7 @@
       });
     }
 
-    return { play, setGain, startCapture, getRMS, stopCapture };
+    return { start, stop, play, setGain, startCapture, getRMS, stopCapture };
   }
 
   window.createFlatulenceFactory = createFlatulenceFactory;

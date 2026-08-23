@@ -137,12 +137,42 @@
 
   let lungeSide = 'right';
 
-  function triggerLunge() {
+  function clearMascotAnimation(mascot) {
+    mascot.classList.remove('lunge-out-left', 'lunge-out-right', 'jiggle-left', 'jiggle-right');
+    mascot.style.transform = '';
+  }
+
+  function beginMascotHold() {
     const mascot = document.getElementById('fart-mascot');
-    mascot.classList.remove('lunge-left', 'lunge-right');
-    void mascot.offsetWidth; // force reflow so the animation restarts if clicked mid-cycle
-    mascot.classList.add(lungeSide === 'right' ? 'lunge-right' : 'lunge-left');
+    clearMascotAnimation(mascot);
+    void mascot.offsetWidth;
+    const side = lungeSide;
     lungeSide = lungeSide === 'right' ? 'left' : 'right';
+    const outClass = side === 'right' ? 'lunge-out-right' : 'lunge-out-left';
+    const jiggleClass = side === 'right' ? 'jiggle-right' : 'jiggle-left';
+    mascot.classList.add(outClass);
+    mascot.addEventListener('animationend', function onLungeOut(event) {
+      if (event.target !== mascot) return;
+      if (!event.animationName.startsWith('fart-lunge-out-')) return;
+      if (!isHolding) return;
+      mascot.classList.remove(outClass);
+      mascot.classList.add(jiggleClass);
+    }, { once: true });
+  }
+
+  function endMascotHold() {
+    const mascot = document.getElementById('fart-mascot');
+    const matrix = new DOMMatrix(getComputedStyle(mascot).transform);
+    const { m41: x, m42: y } = matrix;
+    clearMascotAnimation(mascot);
+    if (x === 0 && y === 0) return;
+    mascot.style.transform = `translate(${x}px, ${y}px)`;
+    mascot.animate([
+      { transform: `translate(${x}px, ${y}px)` },
+      { transform: 'translate(0, 0)' }
+    ], { duration: 260, easing: 'ease-in' }).onfinish = () => {
+      mascot.style.transform = '';
+    };
   }
 
   function triggerRipple() {
@@ -168,15 +198,37 @@
     if (open) document.getElementById('frequency').focus({ preventScroll: true });
   }
 
-  // The UI reports success or failure; the factory is responsible only for
-  // creating and scheduling audio.
-  function playFart(flatulenceFactory) {
+  let isHolding = false;
+  let activePointerId = null;
+
+  function beginHold(flatulenceFactory, fartButton, pointerId = null) {
+    if (isHolding) return;
+    isHolding = true;
+    activePointerId = pointerId;
+    fartButton.classList.add('is-held');
+    triggerRipple();
+    beginMascotHold();
     try {
-      flatulenceFactory.play(settings);
-      setStatus('Fart deployed. Adjust the controls and try again.');
+      flatulenceFactory.start(settings);
+      setStatus('Hold for a long one…');
     } catch (error) {
+      isHolding = false;
+      activePointerId = null;
+      fartButton.classList.remove('is-held');
+      endMascotHold();
       setStatus(error.message || 'Audio could not be started.');
     }
+  }
+
+  function endHold(flatulenceFactory, fartButton, pointerId = null) {
+    if (!isHolding) return;
+    if (pointerId !== null && activePointerId !== null && pointerId !== activePointerId) return;
+    isHolding = false;
+    activePointerId = null;
+    fartButton.classList.remove('is-held');
+    endMascotHold();
+    flatulenceFactory.stop();
+    setStatus('Fart deployed. Adjust the controls and try again.');
   }
 
   function writeString(view, offset, value) {
@@ -390,10 +442,29 @@
       else setStatus('That FartID was not recognized; defaults loaded.');
     }
     syncControls();
-    document.getElementById('fart-button').addEventListener('click', () => {
-      triggerLunge();
-      triggerRipple();
-      playFart(flatulenceFactory);
+    const fartButton = document.getElementById('fart-button');
+    fartButton.addEventListener('pointerdown', event => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      fartButton.setPointerCapture(event.pointerId);
+      beginHold(flatulenceFactory, fartButton, event.pointerId);
+    });
+    fartButton.addEventListener('pointerup', event => {
+      if (fartButton.hasPointerCapture(event.pointerId)) fartButton.releasePointerCapture(event.pointerId);
+      endHold(flatulenceFactory, fartButton, event.pointerId);
+    });
+    fartButton.addEventListener('pointercancel', event => endHold(flatulenceFactory, fartButton, event.pointerId));
+    fartButton.addEventListener('lostpointercapture', event => endHold(flatulenceFactory, fartButton, event.pointerId));
+    fartButton.addEventListener('keydown', event => {
+      if (event.repeat) return;
+      if (event.code !== 'Space' && event.code !== 'Enter') return;
+      event.preventDefault();
+      beginHold(flatulenceFactory, fartButton);
+    });
+    fartButton.addEventListener('keyup', event => {
+      if (event.code !== 'Space' && event.code !== 'Enter') return;
+      event.preventDefault();
+      endHold(flatulenceFactory, fartButton);
     });
     document.getElementById('record-button').addEventListener('click', () => startRecording(flatulenceFactory));
     document.getElementById('share-button').addEventListener('click', copyShareUrl);

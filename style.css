@@ -122,13 +122,15 @@ h1 span { color: var(--brown-light); }
   box-shadow: 0 1.5rem 3rem var(--shadow), 0 0 0 1rem rgba(138, 90, 52, 0.1), inset 0 -1.5rem 0 rgba(92, 58, 31, 0.35);
   cursor: pointer;
   isolation: isolate;
+  user-select: none;
+  -webkit-touch-callout: none;
   transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, width 200ms ease;
 }
 .fart-button:hover {
   background: #9a653c;
   box-shadow: 0 1.7rem 3.5rem var(--shadow), 0 0 0 1.25rem rgba(138, 90, 52, 0.16), inset 0 -1.5rem 0 rgba(92, 58, 31, 0.35);
 }
-.fart-button:active { transform: scale(0.96); background: var(--brown-deep); box-shadow: 0 0.5rem 1rem var(--shadow), 0 0 0 0.6rem rgba(138, 90, 52, 0.1), inset 0 -0.5rem 0 rgba(92, 58, 31, 0.4); }
+.fart-button:active, .fart-button.is-held { transform: scale(0.96); background: var(--brown-deep); box-shadow: 0 0.5rem 1rem var(--shadow), 0 0 0 0.6rem rgba(138, 90, 52, 0.1), inset 0 -0.5rem 0 rgba(92, 58, 31, 0.4); }
 .fart-button:focus-visible, .advanced-toggle:focus-visible, .share-button:focus-visible, .record-button:focus-visible, .icon-button:focus-visible, input:focus-visible { outline: 3px solid var(--brown-light); outline-offset: 4px; }
 .button-ring { position: absolute; inset: 7%; border: 1px solid rgba(18, 22, 16, 0.2); border-radius: 50%; }
 .fart-mascot { position: relative; display: block; width: 73%; height: auto; margin: 0 auto; object-fit: contain; pointer-events: none; transform: translate(0, 0); filter: drop-shadow(0 0.35rem 0.6rem rgba(0, 0, 0, 0.28)); }
@@ -141,22 +143,37 @@ h1 span { color: var(--brown-light); }
   100% { transform: scale(1.6); opacity: 0; filter: blur(7px); }
 }
 
-/* Arcs out toward 3 o'clock, curves down to land at 4 o'clock, then snaps straight back to center. */
-@keyframes fart-lunge-right {
+/* Lunges out to the rim, then jiggles in place while the note is held. */
+@keyframes fart-lunge-out-right {
   0% { transform: translate(0, 0); }
-  30% { transform: translate(31%, 2%); }
-  55% { transform: translate(29%, 17%); }
-  100% { transform: translate(0, 0); }
+  40% { transform: translate(31%, 2%); }
+  100% { transform: translate(29%, 17%); }
 }
-/* Mirror of fart-lunge-right: arcs toward 9 o'clock, lands at 8 o'clock. */
-@keyframes fart-lunge-left {
+@keyframes fart-lunge-out-left {
   0% { transform: translate(0, 0); }
-  30% { transform: translate(-31%, 2%); }
-  55% { transform: translate(-29%, 17%); }
-  100% { transform: translate(0, 0); }
+  40% { transform: translate(-31%, 2%); }
+  100% { transform: translate(-29%, 17%); }
 }
-.fart-mascot.lunge-right { animation: fart-lunge-right 350ms ease-in-out; }
-.fart-mascot.lunge-left { animation: fart-lunge-left 350ms ease-in-out; }
+@keyframes fart-jiggle-right {
+  0% { transform: translate(29%, 17%) rotate(0deg) scale(1); }
+  20% { transform: translate(32%, 14%) rotate(4deg) scale(1.03); }
+  40% { transform: translate(25%, 19%) rotate(-3deg) scale(0.97); }
+  60% { transform: translate(31%, 15%) rotate(3deg) scale(1.02); }
+  80% { transform: translate(27%, 18%) rotate(-4deg) scale(0.98); }
+  100% { transform: translate(29%, 17%) rotate(0deg) scale(1); }
+}
+@keyframes fart-jiggle-left {
+  0% { transform: translate(-29%, 17%) rotate(0deg) scale(1); }
+  20% { transform: translate(-32%, 14%) rotate(-4deg) scale(1.03); }
+  40% { transform: translate(-25%, 19%) rotate(3deg) scale(0.97); }
+  60% { transform: translate(-31%, 15%) rotate(-3deg) scale(1.02); }
+  80% { transform: translate(-27%, 18%) rotate(4deg) scale(0.98); }
+  100% { transform: translate(-29%, 17%) rotate(0deg) scale(1); }
+}
+.fart-mascot.lunge-out-right { animation: fart-lunge-out-right 240ms ease-out forwards; }
+.fart-mascot.lunge-out-left { animation: fart-lunge-out-left 240ms ease-out forwards; }
+.fart-mascot.jiggle-right { animation: fart-jiggle-right 110ms linear infinite; }
+.fart-mascot.jiggle-left { animation: fart-jiggle-left 110ms linear infinite; }
 .status { position: relative; z-index: 1; min-height: 1.25rem; margin: 0; color: var(--muted); font-size: 0.82rem; }
 
 .main-actions { position: relative; z-index: 1; display: flex; justify-content: center; align-items: center; gap: 0.65rem; min-height: 2.75rem; }

@@ -25,9 +25,9 @@
     <section class="console" aria-labelledby="action-title">
       <div class="console-copy">
         <p class="section-label" id="action-title">Ready when you are</p>
-        <p class="hint">One press. Zero samples. Maximum conviction.</p>
+        <p class="hint">Press and hold for a long one.</p>
       </div>
-      <button class="fart-button" id="fart-button" type="button" aria-label="Play fart sound">
+      <button class="fart-button" id="fart-button" type="button" aria-label="Press and hold to play fart sound">
         <span class="button-ring" aria-hidden="true"></span>
         <span class="button-ripple" id="fart-ripple" aria-hidden="true"></span>
         <img class="fart-mascot" id="fart-mascot" src="img/McButtface.png" alt="" aria-hidden="true">
@@ -80,8 +80,8 @@
           <input id="cutoff" type="range" min="180" max="1800" step="10" value="720">
         </label>
         <label class="control" for="decay">
-          <span class="control-heading"><span>Length</span><output id="decay-value" for="decay"></output></span>
-          <span class="control-description">Envelope decay</span>
+          <span class="control-heading"><span>Release</span><output id="decay-value" for="decay"></output></span>
+          <span class="control-description">Fade-out time when you let go</span>
           <input id="decay" type="range" min="0.18" max="1.4" step="0.01" value="0.62">
         </label>
         <label class="control" for="rate">
