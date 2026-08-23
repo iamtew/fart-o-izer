@@ -1,0 +1,188 @@
+# FART-O-IZER color scheme — canonical palette used in style.css and index.html.
+# color-mix(...) blends derive from these base colors; see --panel and --panel-light entries.
+
+[[colors]]
+hex = "#f4efe6"
+name = "Ink"
+tags = ["body", ".record-button", ".share-button", ".advanced-toggle", ".icon-button", ".recording-details strong", ".share-note strong", "h1"]
+desc = "Primary foreground text; default body color via var(--ink). Used for button labels, panel icons, and emphasized inline text."
+
+[[colors]]
+hex = "#a79f92"
+name = "Muted"
+tags = [".tagline", ".hint", ".status", ".control-description", ".share-note", ".recording-details", ".recording-explainer", ".recording-line-countdown a", ".recording-line-active a"]
+desc = "Secondary text for taglines, hints, status messages, control descriptions, and de-emphasized recording links."
+
+[[colors]]
+hex = "#1c1a17"
+name = "Panel"
+tags = [":root", ".record-button", ".share-button", ".advanced-toggle", ".recording-section", ".advanced-panel", "input[type=range]"]
+desc = "Dark surface base via var(--panel). Used in color-mix backgrounds for action buttons, recording section, mobile advanced panel, and slider tracks."
+
+[[colors]]
+hex = "#272420"
+name = "Panel Light"
+tags = [".record-button:hover", ".share-button:hover", ".advanced-toggle:hover", ".icon-button:hover", ".control", "input[type=range]"]
+desc = "Elevated surface via var(--panel-light). Hover backgrounds for action buttons and icon buttons; control card backgrounds in the advanced panel."
+
+[[colors]]
+hex = "#47423a"
+name = "Line"
+tags = [".record-button", ".share-button", ".advanced-toggle", ".icon-button", ".recording-section", ".advanced-panel", ".control", "input[type=range].bipolar"]
+desc = "Border and divider color via var(--line). Outlines pill buttons, panels, control cards, and the neutral center band on bipolar sliders."
+
+[[colors]]
+hex = "#3f5e35"
+name = "Green"
+tags = [":root", "body", "input[type=range]", "input[type=range].bipolar"]
+desc = "Olive accent via var(--green). Range slider gradient endpoint and bipolar slider positive/right side."
+
+[[colors]]
+hex = "#2b4224"
+name = "Green Deep"
+tags = [":root", ".share-button:hover", ".advanced-toggle:hover", ".icon-button:hover", "input[type=range]", ".control-toggle input[type=checkbox]:checked"]
+desc = "Deep olive via var(--green-deep). Hover border accent on share/controls buttons; range slider gradient start and checked-checkbox fill base."
+
+[[colors]]
+hex = "#7da368"
+name = "Green Light"
+tags = [".eyebrow", ".section-label", ".record-icon", ".action-icon", ".toggle-icon", ".recording-chevron", ".control-heading output", ".recording-details a", ".icon-button:hover", "input[type=range]"]
+desc = "Bright moss accent via var(--green-light). Section labels, action icons, slider thumbs, control values, links, and icon-button hover text."
+
+[[colors]]
+hex = "#8a5a34"
+name = "Brown"
+tags = [".fart-button", "input[type=range].bipolar"]
+desc = "Warm bronze via var(--brown). Main launch button background and bipolar slider left/negative side."
+
+[[colors]]
+hex = "#5c3a1f"
+name = "Brown Deep"
+tags = [".fart-button:active", ".fart-button.is-held", "input[type=range].bipolar", ".control-toggle input[type=checkbox]", ".record-button.is-recording"]
+desc = "Dark umber via var(--brown-deep). Pressed button state, bipolar slider mid-tones, checkbox fill, and recording button tint base."
+
+[[colors]]
+hex = "#c98a4f"
+name = "Brown Light"
+tags = ["h1 span", ".fart-button:focus-visible", ".advanced-toggle:focus-visible", ".share-button:focus-visible", ".record-button:focus-visible", ".icon-button:focus-visible", "input:focus-visible", ".button-ripple", ".record-button:hover", ".record-button.is-recording", "input[type=range]"]
+desc = "Tan highlight via var(--brown-light). 6000™ title accent, focus rings, ripple border, recording states, and slider thumb borders."
+
+[[colors]]
+hex = "#00000073"
+name = "Shadow"
+tags = [".fart-button", ".fart-button:hover", ".fart-button:active", ".fart-button.is-held"]
+desc = "Drop shadow via var(--shadow) at 45% opacity. Depth shadow beneath the main launch button in default, hover, and pressed states."
+
+[[colors]]
+hex = "#141210"
+name = "Workshop Black"
+tags = ["html", "body", "meta[name=theme-color]"]
+desc = "Deepest background tone. Page root fill, body gradient start (0%), and browser theme-color meta tag."
+
+[[colors]]
+hex = "#17140f"
+name = "Workshop Brown-Black"
+tags = ["body"]
+desc = "Body gradient midpoint at 55%. Transitions the page background from workshop black toward near-black."
+
+[[colors]]
+hex = "#0c0b09"
+name = "Near Black"
+tags = ["body"]
+desc = "Body gradient end at 100%. Darkest corner of the diagonal background wash."
+
+[[colors]]
+hex = "#121610"
+name = "Button Ink"
+tags = [".fart-button"]
+desc = "Near-black green tint used as text color on the brown launch button (currently decorative; button has no visible text label)."
+
+[[colors]]
+hex = "#9a653c"
+name = "Brown Hover"
+tags = [".fart-button:hover"]
+desc = "Lighter bronze for the launch button hover background."
+
+[[colors]]
+hex = "#8fbd78"
+name = "Green Thumb Hover"
+tags = ["input[type=range]:hover::-webkit-slider-thumb"]
+desc = "Brighter moss for range slider thumb on hover (WebKit only)."
+
+[[colors]]
+hex = "#3f5e3538"
+name = "Green Glow Body"
+tags = ["body"]
+desc = "Semi-transparent olive (22% opacity) in the body radial gradient at 50% 38%. Atmospheric green wash behind the console."
+
+[[colors]]
+hex = "#3f5e352E"
+name = "Green Glow Console"
+tags = [".console::before"]
+desc = "Semi-transparent olive (18% opacity) in the console pseudo-element radial glow behind the launch button."
+
+[[colors]]
+hex = "#8a5a3414"
+name = "Brown Glow Body"
+tags = ["body"]
+desc = "Semi-transparent bronze (8% opacity) in the body radial gradient at 18% 88%. Warm accent near the hero mascot background."
+
+[[colors]]
+hex = "#8a5a34CC"
+name = "Brown Border Strong"
+tags = [".fart-button"]
+desc = "Bronze at 80% opacity. Launch button outer border."
+
+[[colors]]
+hex = "#8a5a341A"
+name = "Brown Ring Default"
+tags = [".fart-button", ".fart-button:active", ".fart-button.is-held"]
+desc = "Bronze at 10% opacity. Soft outer ring in default and pressed button box-shadows."
+
+[[colors]]
+hex = "#8a5a3429"
+name = "Brown Ring Hover"
+tags = [".fart-button:hover"]
+desc = "Bronze at 16% opacity. Expanded outer ring on launch button hover."
+
+[[colors]]
+hex = "#5c3a1f59"
+name = "Brown Inset Default"
+tags = [".fart-button", ".fart-button:hover"]
+desc = "Brown-deep at 35% opacity. Inset bottom shadow giving the launch button its convex depth."
+
+[[colors]]
+hex = "#5c3a1f66"
+name = "Brown Inset Pressed"
+tags = [".fart-button:active", ".fart-button.is-held"]
+desc = "Brown-deep at 40% opacity. Stronger inset shadow when the launch button is held or active."
+
+[[colors]]
+hex = "#12161033"
+name = "Button Ring Border"
+tags = [".button-ring"]
+desc = "Button-ink at 20% opacity. Inner decorative ring border inside the launch button."
+
+[[colors]]
+hex = "#00000047"
+name = "Mascot Shadow"
+tags = [".fart-mascot"]
+desc = "Black at 28% opacity. Drop-shadow filter on the McButtface mascot image inside the button."
+
+[[colors]]
+hex = "#0807069E"
+name = "Backdrop Dim"
+tags = [".panel-backdrop"]
+desc = "Near-black at 62% opacity. Mobile overlay dimming the page when the advanced panel opens as a bottom sheet."
+
+[[colors]]
+hex = "#0000004D"
+name = "Panel Shadow"
+tags = [".advanced-panel"]
+desc = "Black at 30% opacity. Upward box-shadow on the mobile advanced panel bottom sheet."
+
+[[colors]]
+hex = "#00000059"
+name = "Thumb Shadow"
+tags = ["input[type=range]::-webkit-slider-thumb", "input[type=range]::-moz-range-thumb"]
+desc = "Black at 35% opacity. Subtle drop shadow on range slider thumbs."
