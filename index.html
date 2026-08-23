@@ -7,35 +7,40 @@
   <meta name="description" content="Personal Atmospheric Sound Lab">
   <title>FART-O-IZER 6000™</title>
   <link rel="stylesheet" href="style.css">
-  <!-- Load the audio engine before the UI controller; both remain dependency-free. -->
-  <script src="flatulence_factory.js" defer></script>
+  <link rel="stylesheet" href="instruments/fart/fart.css">
+  <!-- Lab shell loads shared styles first, then the active instrument skin. -->
+  <!-- Script order: audio factory → instrument → lab controller. All dependency-free. -->
+  <script src="instruments/fart/flatulence_factory.js" defer></script>
+  <script src="instruments/fart/fart.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
   <main class="app-shell">
     <div class="primary-column">
-    <!-- Branding and the primary sound action. -->
+    <!-- Branding for the whole lab — instruments plug in below the masthead. -->
     <header class="masthead">
       <p class="eyebrow">Personal atmospheric sound lab</p>
       <h1>FART-O-IZER <span>6000™</span></h1>
       <p class="tagline">Sculpt the rumble. Share the evidence.</p>
     </header>
 
-    <!-- The console keeps the main interaction centered across screen sizes. -->
+    <!-- Console: shared frame; each instrument mounts its play surface in #instrument-stage. -->
     <section class="console" aria-labelledby="action-title">
-      <div class="console-copy">
-        <p class="section-label" id="action-title">Ready when you are</p>
-        <p class="hint">Press and hold for a long one.</p>
+      <div id="instrument-stage" data-instrument="fart">
+        <div class="console-copy">
+          <p class="section-label" id="action-title">Ready when you are</p>
+          <p class="hint">Press and hold for a long one.</p>
+        </div>
+        <button class="fart-button" id="fart-button" type="button" aria-label="Press and hold to play fart sound">
+          <span class="button-ring" aria-hidden="true"></span>
+          <span class="button-ripple" id="fart-ripple" aria-hidden="true"></span>
+          <img class="fart-mascot" id="fart-mascot" src="img/McButtface.png" alt="" aria-hidden="true">
+        </button>
       </div>
-      <button class="fart-button" id="fart-button" type="button" aria-label="Press and hold to play fart sound">
-        <span class="button-ring" aria-hidden="true"></span>
-        <span class="button-ripple" id="fart-ripple" aria-hidden="true"></span>
-        <img class="fart-mascot" id="fart-mascot" src="img/McButtface.png" alt="" aria-hidden="true">
-      </button>
       <p class="status" id="status" role="status" aria-live="polite">Audio is waiting for your first press.</p>
     </section>
 
-    <!-- Advanced controls are hidden until requested so the primary action stays clear. -->
+    <!-- Shared lab actions — record, controls, and share work across instruments. -->
     <div class="main-actions" aria-label="Sound actions">
       <button class="record-button" id="record-button" type="button" aria-pressed="false">
         <span class="record-icon" aria-hidden="true">○</span>
@@ -52,7 +57,7 @@
     </div>
 
     <aside class="advanced-panel" id="advanced-panel" aria-label="Advanced sound controls" hidden>
-      <!-- Each range maps to one field in the settings object and FartID. -->
+      <!-- Panel chrome is lab-owned; instrument-specific knobs live in #instrument-controls. -->
       <div class="panel-heading">
         <div>
           <p class="section-label">Sound architecture</p>
@@ -63,7 +68,7 @@
           <button class="icon-button close-panel" id="close-panel" type="button" aria-label="Close advanced controls" title="Close advanced controls"><span class="icon-cross" aria-hidden="true">+</span></button>
         </div>
       </div>
-      <div class="control-grid">
+      <div id="instrument-controls" class="control-grid">
         <label class="control" for="frequency">
           <span class="control-heading"><span>Bassiness</span><output id="frequency-value" for="frequency"></output></span>
           <span class="control-description">Low-end body</span>

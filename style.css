@@ -1,14 +1,16 @@
 /*
- * Styles for the FART-O-IZER 6000.
- * Making flatulence look classy since... well, about five minutes ago.
+ * Lab shell styles for the FART-O-IZER 6000.
+ * The shared atmospheric sound lab — instruments bring their own skins.
  *
- * Visual system: dark workshop atmosphere, brown circular launch control as the
- * focal point, olive-green accents for labels and interactive highlights.
- * (Think artisanal restroom, not gas station.)
+ * Visual system: dark workshop atmosphere, olive-green accents for labels and
+ * interactive highlights. Each instrument ships its own play-surface CSS
+ * (see instruments/fart/fart.css for the brown launch control and McButtface).
  *
  * Layout model:
  *   .app-shell (full viewport column, max-width centered)
  *     └── .primary-column (masthead + console + action bar + recording panel)
+ *         └── #instrument-stage (active instrument play surface)
+ *         └── #instrument-controls (active instrument knobs, inside panel)
  *     └── .advanced-panel (settings sheet — position varies by breakpoint)
  *     └── .panel-backdrop (mobile dim overlay)
  *
@@ -17,9 +19,6 @@
  *     primary column shrinks via margin-right when panel-open.
  *   Mobile (<760px): panel is a bottom sheet; when open it becomes in-flow below
  *     a compressed console so controls stay reachable without covering the button.
- *
- * Animation classes (.lunge-out-*, .jiggle-*, .is-active on ripple) are toggled
- * by app.js to match press-and-hold audio playback. McButtface earns his overtime.
  */
 @import url('https://fonts.cdnfonts.com/css/londrina-solid');
 @import url('https://fonts.cdnfonts.com/css/flapdoodle');
@@ -131,77 +130,10 @@ h1 span { color: var(--brown-light); }
 }
 .console-copy { position: relative; z-index: 1; order: 0; }
 .hint { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.9rem; }
-
-/* --- FART button (the big brown commit button — handle with care) --- */
-/* The round button is the visual and interaction center of the application. */
-.fart-button {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-content: center;
-  width: min(87vw, 24rem);
-  aspect-ratio: 1;
-  border: 1px solid rgba(138, 90, 52, 0.8);
-  border-radius: 50%;
-  color: #121610;
-  background: var(--brown);
-  box-shadow: 0 1rem 2rem var(--shadow), 0 0 0 0.75rem rgba(138, 90, 52, 0.1), inset 0 -1rem 0 rgba(92, 58, 31, 0.35);
-  cursor: pointer;
-  isolation: isolate;
-  user-select: none;
-  -webkit-touch-callout: none;
-  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, width 200ms ease;
-}
-.fart-button:hover {
-  background: #9a653c;
-  box-shadow: 0 1.15rem 2.5rem var(--shadow), 0 0 0 0.9rem rgba(138, 90, 52, 0.16), inset 0 -1rem 0 rgba(92, 58, 31, 0.35);
-}
-.fart-button:active, .fart-button.is-held { transform: scale(0.96); background: var(--brown-deep); box-shadow: 0 0.5rem 1rem var(--shadow), 0 0 0 0.6rem rgba(138, 90, 52, 0.1), inset 0 -0.5rem 0 rgba(92, 58, 31, 0.4); }
-.fart-button:focus-visible, .advanced-toggle:focus-visible, .share-button:focus-visible, .record-button:focus-visible, .icon-button:focus-visible, input:focus-visible { outline: 3px solid var(--brown-light); outline-offset: 4px; }
-.button-ring { position: absolute; inset: 7%; border: 1px solid rgba(18, 22, 16, 0.2); border-radius: 50%; }
-.fart-mascot { position: relative; display: block; width: 73%; height: auto; margin: 0 auto; object-fit: contain; pointer-events: none; transform: translate(0, 0); filter: drop-shadow(0 0.35rem 0.6rem rgba(0, 0, 0, 0.28)); }
-
-/* Ripple ring — shockwave for everyone downwind. */
-.button-ripple { position: absolute; inset: 0; border: 3px solid var(--brown-light); border-radius: 50%; opacity: 0; pointer-events: none; }
-.button-ripple.is-active { animation: fart-ripple 650ms ease-out; }
-@keyframes fart-ripple {
-  0% { transform: scale(1); opacity: 0.65; filter: blur(0px); }
-  100% { transform: scale(1.6); opacity: 0; filter: blur(7px); }
-}
-
-/* --- Mascot hold animations (McButtface lunges; app.js pulls the strings) --- */
-/* Lunges out to the rim, then jiggles in place while the note is held. */
-@keyframes fart-lunge-out-right {
-  0% { transform: translate(0, 0); }
-  40% { transform: translate(31%, 2%); }
-  100% { transform: translate(29%, 17%); }
-}
-@keyframes fart-lunge-out-left {
-  0% { transform: translate(0, 0); }
-  40% { transform: translate(-31%, 2%); }
-  100% { transform: translate(-29%, 17%); }
-}
-@keyframes fart-jiggle-right {
-  0% { transform: translate(29%, 17%) rotate(0deg) scale(1); }
-  20% { transform: translate(32%, 14%) rotate(4deg) scale(1.03); }
-  40% { transform: translate(25%, 19%) rotate(-3deg) scale(0.97); }
-  60% { transform: translate(31%, 15%) rotate(3deg) scale(1.02); }
-  80% { transform: translate(27%, 18%) rotate(-4deg) scale(0.98); }
-  100% { transform: translate(29%, 17%) rotate(0deg) scale(1); }
-}
-@keyframes fart-jiggle-left {
-  0% { transform: translate(-29%, 17%) rotate(0deg) scale(1); }
-  20% { transform: translate(-32%, 14%) rotate(-4deg) scale(1.03); }
-  40% { transform: translate(-25%, 19%) rotate(3deg) scale(0.97); }
-  60% { transform: translate(-31%, 15%) rotate(-3deg) scale(1.02); }
-  80% { transform: translate(-27%, 18%) rotate(4deg) scale(0.98); }
-  100% { transform: translate(-29%, 17%) rotate(0deg) scale(1); }
-}
-.fart-mascot.lunge-out-right { animation: fart-lunge-out-right 240ms ease-out forwards; }
-.fart-mascot.lunge-out-left { animation: fart-lunge-out-left 240ms ease-out forwards; }
-.fart-mascot.jiggle-right { animation: fart-jiggle-right 110ms linear infinite; }
-.fart-mascot.jiggle-left { animation: fart-jiggle-left 110ms linear infinite; }
 .status { position: relative; z-index: 1; min-height: 1.25rem; margin: 0; color: var(--muted); font-size: 0.82rem; }
+
+/* Shared focus ring for lab chrome — instruments may override their own controls. */
+.advanced-toggle:focus-visible, .share-button:focus-visible, .record-button:focus-visible, .icon-button:focus-visible, input:focus-visible { outline: 3px solid var(--brown-light); outline-offset: 4px; }
 
 /* --- Action bar (record, controls, share — the accessory tray) --- */
 .main-actions { position: relative; z-index: 1; display: flex; justify-content: center; align-items: center; gap: 0.65rem; min-height: 2.75rem; }
@@ -348,46 +280,6 @@ h2 {
     color-mix(in srgb, var(--green-deep) 45%, var(--panel));
   background-size: 100% 100%;
 }
-/* Cheek Clapz speed slider: no clap toggle, no clap for you */
-.control-effect:has(#cheekClapz:not(:checked)) #cheekClapzSpeed {
-  opacity: 0.45;
-  pointer-events: none;
-}
-
-/* Sphincter Shift bipolar slider — brown = dive, green = whistle. You know the drill. */
-input[type="range"].bipolar {
-  background: linear-gradient(
-    to right,
-    var(--brown) 0%,
-    var(--brown-deep) 48%,
-    var(--line) 48%,
-    var(--line) 52%,
-    var(--brown-deep) 52%,
-    var(--green) 100%
-  );
-}
-input[type="range"].bipolar::-webkit-slider-runnable-track {
-  background: linear-gradient(
-    to right,
-    color-mix(in srgb, var(--brown) 70%, var(--panel)) 0%,
-    color-mix(in srgb, var(--brown-deep) 55%, var(--panel)) 47%,
-    var(--green-light) 47%,
-    var(--green-light) 53%,
-    color-mix(in srgb, var(--brown-deep) 55%, var(--panel)) 53%,
-    color-mix(in srgb, var(--green) 55%, var(--panel)) 100%
-  );
-}
-input[type="range"].bipolar::-moz-range-track {
-  background: linear-gradient(
-    to right,
-    color-mix(in srgb, var(--brown) 70%, var(--panel)) 0%,
-    color-mix(in srgb, var(--brown-deep) 55%, var(--panel)) 47%,
-    var(--green-light) 47%,
-    var(--green-light) 53%,
-    color-mix(in srgb, var(--brown-deep) 55%, var(--panel)) 53%,
-    color-mix(in srgb, var(--green) 55%, var(--panel)) 100%
-  );
-}
 
 /* Custom range sliders — brown track, green thumb. Toilet chic. */
 input[type="range"] {
@@ -432,9 +324,6 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 0.1rem 0.35rem rgba(0, 0, 0, 0.35);
 }
 
-.share-note { max-width: 42rem; margin: 1.5rem auto 0; color: var(--muted); font-size: 0.78rem; }
-.share-note strong { color: var(--ink); }
-
 @keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes panel-in { from { transform: translateY(1rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
@@ -458,7 +347,7 @@ input[type="range"]::-moz-range-thumb {
     background: var(--panel);
     animation-name: panel-in-desktop;
   }
-  .control-grid, .panel-heading, .share-note { max-width: none; }
+  .control-grid, .panel-heading { max-width: none; }
   @keyframes panel-in-desktop { from { transform: translateX(1rem); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 }
 
@@ -486,7 +375,6 @@ input[type="range"]::-moz-range-thumb {
   body.panel-open .console { min-height: 0; flex: 0 0 auto; justify-content: flex-start; gap: 0.25rem; padding-top: 0; }
   body.panel-open .console-copy, body.panel-open .status { display: none; }
   body.panel-open .console::before { display: none; }
-  body.panel-open .fart-button { width: min(57vw, 16.5rem); }
   body.panel-open .main-actions { flex: 0 0 auto; margin-bottom: 0; }
   body.panel-open .advanced-panel {
     position: relative;
@@ -508,7 +396,6 @@ input[type="range"]::-moz-range-thumb {
 @media (max-height: 800px) {
   .app-shell { padding: 0.65rem 1rem 0.85rem; }
   .console { gap: 0.5rem; }
-  .fart-button { width: min(75vw, 21rem); }
   body { --hero-bg-size: 22% auto; }
 }
 
