@@ -24,6 +24,6 @@ Adjust the Advanced controls. The settings are encoded into the `FartID` query p
 
 ## Record a sound
 
-Press **Record**, then press **FART** as usual. The recorder captures the synthesizer's output, not the microphone, so no microphone permission is requested. Recording stops manually, after 1 second of silence following a detected fart signal, or at the 10-second maximum.
+Press **Record**, then press **FART** as usual. The recorder captures the synthesizer's output, not the microphone, so no microphone permission is requested. Recording stops when you press **Record** again, after 1 second of silence following a detected fart signal, or at the 60-second maximum.
 
 Non-empty recordings download as mono PCM WAV files. The latest recording remains available in the **Fart Recording** section for another download until the page is reloaded. Browsers must support Web Audio and `AudioWorklet`; unsupported browsers report the problem in the status message.

@@ -21,6 +21,8 @@
   const controls = {};
   const outputs = {};
   let settings = { ...defaults };
+  const RECORDING_MAX_MS = 60000;
+  const SILENCE_STOP_MS = 1000;
   const recording = {
     active: false, countingDown: false, starting: false, stopRequested: false, sawSignal: false,
     silenceStarted: 0, maxTimer: null, rmsTimer: null, countdownTimer: null, lastBlobURL: null, filename: '', stopping: false
@@ -296,6 +298,7 @@
       setStatus('Finishing the previous recording. Try again in a moment.');
       return;
     }
+    // Record doubles as stop: cancel countdown, or end an active/starting session.
     if (recording.active || recording.countingDown) {
       recording.stopRequested = true;
       if (recording.countingDown) {
@@ -303,7 +306,10 @@
         clearRecordingTimers();
         updateRecordingButton();
         setStatus('Recording cancelled.');
-      } else if (!recording.starting) await stopRecording(flatulenceFactory, 'manual');
+      } else if (!recording.starting) {
+        await stopRecording(flatulenceFactory, 'manual');
+      }
+      // While startCapture is in flight, stopRequested is honored when it resolves.
       return;
     }
     recording.countingDown = true;
@@ -324,13 +330,14 @@
     showRecordingSection(0, 'active');
     try {
       await flatulenceFactory.startCapture(settings.gain);
+      // Clear starting before the stop check so a mid-start Record press cannot
+      // race past stopRequested and leave capture running without a stop path.
+      recording.starting = false;
       if (recording.stopRequested) {
-        recording.starting = false;
         await stopRecording(flatulenceFactory, 'manual');
         return;
       }
-      recording.starting = false;
-      recording.maxTimer = window.setTimeout(() => stopRecording(flatulenceFactory, 'maximum'), 10000);
+      recording.maxTimer = window.setTimeout(() => stopRecording(flatulenceFactory, 'maximum'), RECORDING_MAX_MS);
       recording.rmsTimer = window.setInterval(() => {
         const rms = flatulenceFactory.getRMS();
         if (rms >= 0.01) {
@@ -338,7 +345,7 @@
           recording.silenceStarted = 0;
         } else if (recording.sawSignal) {
           if (!recording.silenceStarted) recording.silenceStarted = Date.now();
-          if (Date.now() - recording.silenceStarted >= 1000) stopRecording(flatulenceFactory, 'silence');
+          if (Date.now() - recording.silenceStarted >= SILENCE_STOP_MS) stopRecording(flatulenceFactory, 'silence');
         }
       }, 50);
       setStatus('Recording armed. Press FART to capture the evidence.');
