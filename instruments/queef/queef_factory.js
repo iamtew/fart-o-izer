@@ -1,7 +1,7 @@
 /*
  * The melodic voice engine for the Queef instrument.
  * Brighter, higher, and more tonal than the Flatulence Factory — triangle body,
- * airy noise, bandpass resonance, vibrato LFO, and a slow phrase drift LFO.
+ * pink noise, bandpass filter (cutoff + Q), vibrato LFO, and a slow phrase drift LFO.
  *
  * Signal chain (per press):
  *   body osc (selectable waveform) ──► bodyGain ──┐
@@ -61,10 +61,28 @@
       masterGain.connect(analyserNode).connect(audioContext.destination);
     }
 
+    // Paul Kellet's economical pink-noise filter — softer roll-off than white noise.
     function createNoiseBuffer(durationSeconds = 1.6) {
       const buffer = audioContext.createBuffer(1, Math.ceil(audioContext.sampleRate * durationSeconds), audioContext.sampleRate);
       const data = buffer.getChannelData(0);
-      for (let index = 0; index < data.length; index += 1) data[index] = Math.random() * 2 - 1;
+      let b0 = 0;
+      let b1 = 0;
+      let b2 = 0;
+      let b3 = 0;
+      let b4 = 0;
+      let b5 = 0;
+      let b6 = 0;
+      for (let index = 0; index < data.length; index += 1) {
+        const white = Math.random() * 2 - 1;
+        b0 = 0.99886 * b0 + white * 0.0555179;
+        b1 = 0.99332 * b1 + white * 0.0750759;
+        b2 = 0.96900 * b2 + white * 0.1538520;
+        b3 = 0.86650 * b3 + white * 0.3104856;
+        b4 = 0.55000 * b4 + white * 0.5329522;
+        b5 = -0.7616 * b5 - white * 0.0168980;
+        data[index] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+        b6 = white * 0.115926;
+      }
       return buffer;
     }
 
@@ -136,7 +154,7 @@
 
       filter.type = 'bandpass';
       filter.frequency.setValueAtTime(settings.cutoff, now);
-      filter.Q.value = 3.8;
+      filter.Q.value = settings.resonance ?? 3.8;
 
       bodyGain.gain.setValueAtTime(0.0001, now);
       bodyGain.gain.exponentialRampToValueAtTime(bodyPeak, now + 0.014);

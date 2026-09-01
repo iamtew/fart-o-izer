@@ -28,17 +28,17 @@
   const VERSION = 1;
   const WAVEFORMS = ['sine', 'triangle', 'sawtooth', 'square'];
   const defaults = {
-    frequency: 220, noise: 0.18, cutoff: 1600, decay: 0.55, rate: 6.5, depth: 0.38,
+    frequency: 220, noise: 0.18, cutoff: 1600, resonance: 3.8, decay: 0.55, rate: 6.5, depth: 0.38,
     phraseRate: 0.65, phraseDepth: 0.42, gain: 0.5, waveform: 'triangle',
     flutterGate: false, flutterGateSpeed: 6, pitchGlide: 0.15
   };
   const ranges = {
-    frequency: [140, 380], noise: [0, 1], cutoff: [800, 3200], decay: [0.15, 1.2],
+    frequency: [140, 380], noise: [0, 1], cutoff: [800, 3200], resonance: [0.5, 12], decay: [0.15, 1.2],
     rate: [4, 10], depth: [0, 1], phraseRate: [0.3, 1.2], phraseDepth: [0, 1],
     gain: [0.15, 0.8], flutterGateSpeed: [2, 18], pitchGlide: [-1, 1]
   };
   const keys = {
-    frequency: 'f', noise: 'n', cutoff: 'c', decay: 'd', rate: 'r', depth: 'l',
+    frequency: 'f', noise: 'n', cutoff: 'c', resonance: 'q', decay: 'd', rate: 'r', depth: 'l',
     phraseRate: 'a', phraseDepth: 'b', gain: 'g', waveform: 'w',
     flutterGate: 'z', flutterGateSpeed: 's', pitchGlide: 'p'
   };
@@ -53,6 +53,7 @@
     frequency: value => `${Math.round(value)} Hz`,
     noise: value => `${Math.round(value * 100)}%`,
     cutoff: value => `${Math.round(value)} Hz`,
+    resonance: value => Number(value).toFixed(1),
     decay: value => `${Number(value).toFixed(2)} s`,
     rate: value => `${Number(value).toFixed(1)} Hz`,
     depth: value => `${Math.round(value * 100)}%`,
@@ -114,14 +115,19 @@
         </div>
       </div>
       <label class="control" for="noise">
-        <span class="control-heading"><span>Airy texture</span><output id="noise-value" for="noise"></output></span>
-        <span class="control-description">Noise amount</span>
+        <span class="control-heading"><span>Pink noise</span><output id="noise-value" for="noise"></output></span>
+        <span class="control-description">Soft airy texture blend</span>
         <input id="noise" type="range" min="0" max="1" step="0.01" value="0.18">
       </label>
       <label class="control" for="cutoff">
-        <span class="control-heading"><span>Resonance</span><output id="cutoff-value" for="cutoff"></output></span>
-        <span class="control-description">Bandpass center frequency</span>
+        <span class="control-heading"><span>Filter cutoff</span><output id="cutoff-value" for="cutoff"></output></span>
+        <span class="control-description">Bandpass filter cutoff frequency</span>
         <input id="cutoff" type="range" min="800" max="3200" step="10" value="1600">
+      </label>
+      <label class="control" for="resonance">
+        <span class="control-heading"><span>Resonance</span><output id="resonance-value" for="resonance"></output></span>
+        <span class="control-description">Bandpass filter sharpness (Q)</span>
+        <input id="resonance" type="range" min="0.5" max="12" step="0.1" value="3.8">
       </label>
       <label class="control" for="decay">
         <span class="control-heading"><span>Release</span><output id="decay-value" for="decay"></output></span>

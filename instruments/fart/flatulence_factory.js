@@ -133,7 +133,7 @@
       body.detune.setValueAtTime((Math.random() - 0.5) * 20, now);
       filter.type = 'lowpass';
       filter.frequency.setValueAtTime(settings.cutoff, now);
-      filter.Q.value = 2.5;
+      filter.Q.value = settings.resonance ?? 2.5;
       bodyGain.gain.setValueAtTime(0.0001, now);
       bodyGain.gain.exponentialRampToValueAtTime(BODY_PEAK, now + 0.012);
       bodyGain.gain.setValueAtTime(BODY_PEAK, now + 0.012);

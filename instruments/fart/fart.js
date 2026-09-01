@@ -34,16 +34,16 @@
   const RECORDING_TITLE = 'Fart Recording';
   const VERSION = 1;
   const defaults = {
-    frequency: 58, noise: 0.42, cutoff: 720, decay: 0.62, rate: 4.2, depth: 0.32, gain: 0.48,
+    frequency: 58, noise: 0.42, cutoff: 720, resonance: 2.5, decay: 0.62, rate: 4.2, depth: 0.32, gain: 0.48,
     cheekClapz: false, cheekClapzSpeed: 8, sphincterShift: 0
   };
   const ranges = {
-    frequency: [35, 110], noise: [0, 1], cutoff: [180, 1800], decay: [0.18, 1.4],
+    frequency: [35, 110], noise: [0, 1], cutoff: [180, 1800], resonance: [0.5, 12], decay: [0.18, 1.4],
     rate: [1, 12], depth: [0, 1], gain: [0.15, 0.8],
     cheekClapzSpeed: [2, 24], sphincterShift: [-1, 1]
   };
   const keys = {
-    frequency: 'f', noise: 'n', cutoff: 'c', decay: 'd', rate: 'r', depth: 'l', gain: 'g',
+    frequency: 'f', noise: 'n', cutoff: 'c', resonance: 'q', decay: 'd', rate: 'r', depth: 'l', gain: 'g',
     cheekClapz: 'z', cheekClapzSpeed: 's', sphincterShift: 'p'
   };
   const controls = {};
@@ -57,6 +57,7 @@
     frequency: value => `${Math.round(value)} Hz`,
     noise: value => `${Math.round(value * 100)}%`,
     cutoff: value => `${Math.round(value)} Hz`,
+    resonance: value => Number(value).toFixed(1),
     decay: value => `${Number(value).toFixed(2)} s`,
     rate: value => `${Number(value).toFixed(1)} Hz`,
     depth: value => `${Math.round(value * 100)}%`,
@@ -113,6 +114,11 @@
         <span class="control-heading"><span>Filter cutoff</span><output id="cutoff-value" for="cutoff"></output></span>
         <span class="control-description">Lowpass filter cutoff frequency</span>
         <input id="cutoff" type="range" min="180" max="1800" step="10" value="720">
+      </label>
+      <label class="control" for="resonance">
+        <span class="control-heading"><span>Resonance</span><output id="resonance-value" for="resonance"></output></span>
+        <span class="control-description">Lowpass filter sharpness (Q)</span>
+        <input id="resonance" type="range" min="0.5" max="12" step="0.1" value="2.5">
       </label>
       <label class="control" for="decay">
         <span class="control-heading"><span>Release</span><output id="decay-value" for="decay"></output></span>
