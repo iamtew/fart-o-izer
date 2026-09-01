@@ -14,7 +14,7 @@
  *
  * Runtime flow:
  *   Instrument pick → switchInstrument(id)
- *   Record          → countdown → capture tap on activeInstrument.getAudio()
+ *   Record          → 4-3-2-1 countdown clicks → capture tap on activeInstrument.getAudio()
  *   Share           → activeInstrument.share()
  *   Reset           → activeInstrument.reset()
  *   Controls open   → activeInstrument.onPanelOpen() (if provided)
@@ -34,6 +34,8 @@
 
   const RECORDING_MAX_MS = 60000;
   const SILENCE_STOP_MS = 1000;
+  const COUNTDOWN_SECONDS = 4;
+  const COUNTDOWN_BEAT_MS = 500; // 120 BPM
   const recording = {
     active: false, countingDown: false, starting: false, stopRequested: false, sawSignal: false,
     silenceStarted: 0, maxTimer: null, rmsTimer: null, countdownTimer: null, lastBlobURL: null, filename: '', stopping: false
@@ -90,7 +92,7 @@
     if (recording.countingDown) {
       recording.countingDown = false;
       recording.stopRequested = false;
-      clearRecordingTimers();
+      clearRecordingTimers(true);
       updateRecordingButton();
       return;
     }
@@ -171,10 +173,11 @@
     return `${instrument}_Fart-O-Izer_${timestamp}.wav`;
   }
 
-  function clearRecordingTimers() {
+  function clearRecordingTimers(invalidateClicks = false) {
     window.clearTimeout(recording.maxTimer);
     window.clearInterval(recording.rmsTimer);
     window.clearTimeout(recording.countdownTimer);
+    if (invalidateClicks && recording.countdownTimer !== null) window.CountdownClicks.invalidate();
     recording.maxTimer = null;
     recording.rmsTimer = null;
     recording.countdownTimer = null;
@@ -252,6 +255,26 @@
     }
   }
 
+  function startCountdown() {
+    let beat = 0;
+    window.CountdownClicks.beginSession();
+    const tick = () => {
+      if (!recording.countingDown) return;
+      if (beat >= COUNTDOWN_SECONDS) {
+        clearRecordingTimers();
+        window.CountdownClicks.play({ accent: true });
+        beginRecording();
+        return;
+      }
+      window.CountdownClicks.play({ accent: false });
+      const remaining = COUNTDOWN_SECONDS - beat;
+      setStatus(`Recording starts in ${remaining} second${remaining === 1 ? '' : 's'}.`);
+      beat += 1;
+    };
+    tick();
+    recording.countdownTimer = window.setInterval(tick, COUNTDOWN_BEAT_MS);
+  }
+
   async function startRecording() {
     const audio = activeInstrument.getAudio();
     if (recording.stopping) {
@@ -262,7 +285,7 @@
       recording.stopRequested = true;
       if (recording.countingDown) {
         recording.countingDown = false;
-        clearRecordingTimers();
+        clearRecordingTimers(true);
         updateRecordingButton();
         setStatus('Recording cancelled.');
       } else if (!recording.starting) {
@@ -274,8 +297,7 @@
     recording.stopRequested = false;
     updateRecordingButton();
     showRecordingSection(0, 'countdown');
-    setStatus('Recording starts in 2 seconds.');
-    recording.countdownTimer = window.setTimeout(() => beginRecording(), 2000);
+    startCountdown();
   }
 
   async function beginRecording() {

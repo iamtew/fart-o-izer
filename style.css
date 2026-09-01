@@ -182,7 +182,7 @@ body[data-instrument="queef"] .instrument-picker-button.is-selected {
 .advanced-toggle { min-height: 3rem; padding: 0.65rem 1rem; gap: 0.65rem; }
 .record-button:hover { border-color: var(--brown-light); background: var(--panel-light); }
 .record-button.is-recording { border-color: var(--brown-light); color: var(--brown-light); background: color-mix(in srgb, var(--brown-deep) 35%, var(--panel)); }
-.record-button.is-counting-down { animation: record-countdown 620ms ease-in-out infinite alternate; }
+.record-button.is-counting-down { animation: record-countdown 500ms ease-in-out infinite alternate; }
 .record-icon { color: var(--green-light); font-size: 1.2rem; line-height: 1; }
 .record-button.is-recording .record-icon { color: var(--brown-light); }
 .share-button:hover, .advanced-toggle:hover { border-color: var(--green-deep); background: var(--panel-light); }
