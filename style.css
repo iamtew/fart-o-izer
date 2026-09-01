@@ -102,6 +102,37 @@ h1 {
 h1 span { color: var(--brown-light); }
 .tagline { margin-bottom: 0; color: var(--muted); font-size: 1rem; }
 
+/* --- Instrument picker (one stall at a time — for now) --- */
+.instrument-picker {
+  display: inline-flex;
+  gap: 0.35rem;
+  margin-top: 0.85rem;
+  padding: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
+.instrument-picker-button {
+  min-height: 2.25rem;
+  padding: 0.4rem 1rem;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+.instrument-picker-button:hover { color: var(--ink); background: var(--panel-light); }
+.instrument-picker-button.is-selected {
+  color: var(--ink);
+  background: var(--panel-light);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.instrument-picker-button:focus-visible { outline: 3px solid var(--brown-light); outline-offset: 2px; }
+body[data-instrument="queef"] .instrument-picker-button.is-selected {
+  box-shadow: inset 0 0 0 1px rgba(180, 110, 140, 0.45);
+}
+
 /* --- Console (center stage — where dignity goes to die) --- */
 .console {
   position: relative;

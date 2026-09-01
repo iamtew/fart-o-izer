@@ -39,12 +39,12 @@
 }
 .fart-button:active, .fart-button.is-held { transform: scale(0.96); background: var(--brown-deep); box-shadow: 0 0.5rem 1rem var(--shadow), 0 0 0 0.6rem rgba(138, 90, 52, 0.1), inset 0 -0.5rem 0 rgba(92, 58, 31, 0.4); }
 .fart-button:focus-visible { outline: 3px solid var(--brown-light); outline-offset: 4px; }
-.button-ring { position: absolute; inset: 7%; border: 1px solid rgba(18, 22, 16, 0.2); border-radius: 50%; }
+.fart-button .button-ring { position: absolute; inset: 7%; border: 1px solid rgba(18, 22, 16, 0.2); border-radius: 50%; }
 .fart-mascot { position: relative; display: block; width: 73%; height: auto; margin: 0 auto; object-fit: contain; pointer-events: none; transform: translate(0, 0); filter: drop-shadow(0 0.35rem 0.6rem rgba(0, 0, 0, 0.28)); }
 
 /* Ripple ring — shockwave for everyone downwind. */
-.button-ripple { position: absolute; inset: 0; border: 3px solid var(--brown-light); border-radius: 50%; opacity: 0; pointer-events: none; }
-.button-ripple.is-active { animation: fart-ripple 650ms ease-out; }
+.fart-button .button-ripple { position: absolute; inset: 0; border: 3px solid var(--brown-light); border-radius: 50%; opacity: 0; pointer-events: none; }
+.fart-button .button-ripple.is-active { animation: fart-ripple 650ms ease-out; }
 @keyframes fart-ripple {
   0% { transform: scale(1); opacity: 0.65; filter: blur(0px); }
   100% { transform: scale(1.6); opacity: 0; filter: blur(7px); }
@@ -85,13 +85,13 @@
 
 /* --- Fart-specific control tweaks --- */
 /* Cheek Clapz speed slider: no clap toggle, no clap for you */
-#instrument-controls .control-effect:has(#cheekClapz:not(:checked)) #cheekClapzSpeed {
+body[data-instrument="fart"] #instrument-controls .control-effect:has(#cheekClapz:not(:checked)) #cheekClapzSpeed {
   opacity: 0.45;
   pointer-events: none;
 }
 
 /* Sphincter Shift bipolar slider — brown = dive, green = whistle. You know the drill. */
-#instrument-controls input[type="range"].bipolar {
+body[data-instrument="fart"] #instrument-controls input[type="range"].bipolar {
   background: linear-gradient(
     to right,
     var(--brown) 0%,
@@ -102,7 +102,7 @@
     var(--green) 100%
   );
 }
-#instrument-controls input[type="range"].bipolar::-webkit-slider-runnable-track {
+body[data-instrument="fart"] #instrument-controls input[type="range"].bipolar::-webkit-slider-runnable-track {
   background: linear-gradient(
     to right,
     color-mix(in srgb, var(--brown) 70%, var(--panel)) 0%,
@@ -113,7 +113,7 @@
     color-mix(in srgb, var(--green) 55%, var(--panel)) 100%
   );
 }
-#instrument-controls input[type="range"].bipolar::-moz-range-track {
+body[data-instrument="fart"] #instrument-controls input[type="range"].bipolar::-moz-range-track {
   background: linear-gradient(
     to right,
     color-mix(in srgb, var(--brown) 70%, var(--panel)) 0%,

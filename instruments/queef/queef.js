@@ -1,55 +1,51 @@
 /*
- * The Fart instrument for the FART-O-IZER 6000 lab.
- * (The original sin — now packaged for polite multi-instrument society.)
- *
- * Owns the FART play surface, McButtface mascot theatrics, settings model,
- * FartID URL sharing, and wiring to the Flatulence Factory. The lab shell in
- * app.js mounts this instrument and talks to it through a small plug-in API:
- * mount, unmount, getAudio, share, reset, getGain, onPanelOpen.
+ * The Queef instrument for the FART-O-IZER 6000 lab.
+ * A brighter, more melodic cousin of Fart — higher pitch, softer texture,
+ * vibrato and phrase drift. Owns play surface, settings, QueefID sharing,
+ * and wiring to the Queef Factory audio engine.
  *
  * Boot flow (called by app.js):
- *   FartInstrument.mount(shellApi)
+ *   QueefInstrument.mount(shellApi)
  *     → inject stage + control markup
- *     → createFlatulenceFactory()
- *     → wire range inputs inside #instrument-controls
- *     → decode ?FartID= from the URL (if present)
- *     → attach FART hold/release on #fart-button
+ *     → createQueefFactory()
+ *     → wire controls, decode ?QueefID=, attach QUEEF hold/release
  *
  * Runtime flow:
- *   Slider change → update settings + URL + (gain) live audio
- *   FART press    → beginHold → factory.start(settings) + mascot/ripple
- *   FART release  → endHold   → factory.stop() + mascot return
- *   Share button  → shell calls share() → copy ?FartID= URL
- *
- * He who smelt it, dealt it — but he who shared the FartID, shared it.
+ *   Slider change  → update settings + URL + (gain) live audio
+ *   Waveform pick  → update settings + URL (applies on next hold)
+ *   QUEEF press    → beginHold → factory.start(settings) + mascot/ripple
+ *   QUEEF release → endHold   → factory.stop() + mascot return
+ *   Share button  → shell calls share() → copy ?instrument=queef&QueefID= URL
  */
 (() => {
   'use strict';
 
-  // --- Settings model (the recipe card for each toot) ---
-  const ID = 'fart';
-  const DISPLAY_NAME = 'Fart';
-  const PARAMETER = 'FartID';
-  const PLAY_ACTION_LABEL = 'FART';
-  const RECORDING_TITLE = 'Fart Recording';
+  const ID = 'queef';
+  const DISPLAY_NAME = 'Queef';
+  const PARAMETER = 'QueefID';
+  const PLAY_ACTION_LABEL = 'QUEEF';
+  const RECORDING_TITLE = 'Queef Recording';
   const VERSION = 1;
+  const WAVEFORMS = ['sine', 'triangle', 'sawtooth', 'square'];
   const defaults = {
-    frequency: 58, noise: 0.42, cutoff: 720, decay: 0.62, rate: 4.2, depth: 0.32, gain: 0.48,
-    cheekClapz: false, cheekClapzSpeed: 8, sphincterShift: 0
+    frequency: 220, noise: 0.18, cutoff: 1600, decay: 0.55, rate: 6.5, depth: 0.38,
+    phraseRate: 0.65, phraseDepth: 0.42, gain: 0.5, waveform: 'triangle',
+    flutterGate: false, flutterGateSpeed: 6, pitchGlide: 0.15
   };
   const ranges = {
-    frequency: [35, 110], noise: [0, 1], cutoff: [180, 1800], decay: [0.18, 1.4],
-    rate: [1, 12], depth: [0, 1], gain: [0.15, 0.8],
-    cheekClapzSpeed: [2, 24], sphincterShift: [-1, 1]
+    frequency: [140, 380], noise: [0, 1], cutoff: [800, 3200], decay: [0.15, 1.2],
+    rate: [4, 10], depth: [0, 1], phraseRate: [0.3, 1.2], phraseDepth: [0, 1],
+    gain: [0.15, 0.8], flutterGateSpeed: [2, 18], pitchGlide: [-1, 1]
   };
   const keys = {
-    frequency: 'f', noise: 'n', cutoff: 'c', decay: 'd', rate: 'r', depth: 'l', gain: 'g',
-    cheekClapz: 'z', cheekClapzSpeed: 's', sphincterShift: 'p'
+    frequency: 'f', noise: 'n', cutoff: 'c', decay: 'd', rate: 'r', depth: 'l',
+    phraseRate: 'a', phraseDepth: 'b', gain: 'g', waveform: 'w',
+    flutterGate: 'z', flutterGateSpeed: 's', pitchGlide: 'p'
   };
   const controls = {};
   const outputs = {};
   let settings = { ...defaults };
-  let flatulenceFactory;
+  let queefFactory;
   let setStatus = () => {};
   let mountAbort = null;
 
@@ -60,11 +56,13 @@
     decay: value => `${Number(value).toFixed(2)} s`,
     rate: value => `${Number(value).toFixed(1)} Hz`,
     depth: value => `${Math.round(value * 100)}%`,
+    phraseRate: value => `${Number(value).toFixed(2)} Hz`,
+    phraseDepth: value => `${Math.round(value * 100)}%`,
     gain: value => `${Math.round(value * 100)}%`,
-    cheekClapzSpeed: value => `${Number(value).toFixed(1)} Hz`,
-    sphincterShift: value => {
+    flutterGateSpeed: value => `${Number(value).toFixed(1)} Hz`,
+    pitchGlide: value => {
       if (Math.abs(value) < 0.02) return 'neutral';
-      const label = value < 0 ? 'dive' : 'whistle';
+      const label = value < 0 ? 'dip' : 'rise';
       return `${label} ${Math.round(Math.abs(value) * 100)}%`;
     }
   };
@@ -79,7 +77,8 @@
       const value = Number(candidate[name]);
       clean[name] = Number.isFinite(value) ? clamp(value, ranges[name]) : defaults[name];
     });
-    clean.cheekClapz = candidate.cheekClapz === true || candidate.cheekClapz === 1 || candidate.cheekClapz === '1';
+    clean.flutterGate = candidate.flutterGate === true || candidate.flutterGate === 1 || candidate.flutterGate === '1';
+    clean.waveform = WAVEFORMS.includes(candidate.waveform) ? candidate.waveform : defaults.waveform;
     return clean;
   }
 
@@ -87,12 +86,12 @@
     return `
       <div class="console-copy">
         <p class="section-label" id="action-title">Ready when you are</p>
-        <p class="hint">Press and hold for a long one.</p>
+        <p class="hint">Press and hold for a melodic tone.</p>
       </div>
-      <button class="fart-button" id="fart-button" type="button" aria-label="Press and hold to play fart sound">
+      <button class="queef-button" id="queef-button" type="button" aria-label="Press and hold to play queef sound">
         <span class="button-ring" aria-hidden="true"></span>
-        <span class="button-ripple" id="fart-ripple" aria-hidden="true"></span>
-        <img class="fart-mascot" id="fart-mascot" src="img/McButtface.png" alt="" aria-hidden="true">
+        <span class="button-ripple" id="queef-ripple" aria-hidden="true"></span>
+        <img class="queef-mascot" id="queef-mascot" src="img/QueenQueef.png" alt="" aria-hidden="true">
       </button>
     `;
   }
@@ -100,55 +99,75 @@
   function renderControls() {
     return `
       <label class="control" for="frequency">
-        <span class="control-heading"><span>Bassiness</span><output id="frequency-value" for="frequency"></output></span>
+        <span class="control-heading"><span>Brightness</span><output id="frequency-value" for="frequency"></output></span>
         <span class="control-description">Oscillator frequency</span>
-        <input id="frequency" type="range" min="35" max="110" step="1" value="58">
+        <input id="frequency" type="range" min="140" max="380" step="1" value="220">
       </label>
+      <div class="control control-waveform">
+        <span class="control-heading"><span>Waveform</span></span>
+        <span class="control-description">Body oscillator shape</span>
+        <div class="waveform-picker" role="radiogroup" aria-label="Waveform">
+          <button class="waveform-picker-button" type="button" role="radio" data-waveform="sine" aria-checked="false">Sine</button>
+          <button class="waveform-picker-button is-selected" type="button" role="radio" data-waveform="triangle" aria-checked="true">Triangle</button>
+          <button class="waveform-picker-button" type="button" role="radio" data-waveform="sawtooth" aria-checked="false">Saw</button>
+          <button class="waveform-picker-button" type="button" role="radio" data-waveform="square" aria-checked="false">Square</button>
+        </div>
+      </div>
       <label class="control" for="noise">
-        <span class="control-heading"><span>Splatter</span><output id="noise-value" for="noise"></output></span>
+        <span class="control-heading"><span>Airy texture</span><output id="noise-value" for="noise"></output></span>
         <span class="control-description">Noise amount</span>
-        <input id="noise" type="range" min="0" max="1" step="0.01" value="0.42">
+        <input id="noise" type="range" min="0" max="1" step="0.01" value="0.18">
       </label>
       <label class="control" for="cutoff">
-        <span class="control-heading"><span>Filter cutoff</span><output id="cutoff-value" for="cutoff"></output></span>
-        <span class="control-description">Lowpass filter cutoff frequency</span>
-        <input id="cutoff" type="range" min="180" max="1800" step="10" value="720">
+        <span class="control-heading"><span>Resonance</span><output id="cutoff-value" for="cutoff"></output></span>
+        <span class="control-description">Bandpass center frequency</span>
+        <input id="cutoff" type="range" min="800" max="3200" step="10" value="1600">
       </label>
       <label class="control" for="decay">
         <span class="control-heading"><span>Release</span><output id="decay-value" for="decay"></output></span>
         <span class="control-description">Envelope release time</span>
-        <input id="decay" type="range" min="0.18" max="1.4" step="0.01" value="0.62">
+        <input id="decay" type="range" min="0.15" max="1.2" step="0.01" value="0.55">
       </label>
       <label class="control" for="rate">
-        <span class="control-heading"><span>Rumble rate</span><output id="rate-value" for="rate"></output></span>
-        <span class="control-description">LFO rate</span>
-        <input id="rate" type="range" min="1" max="12" step="0.1" value="4.2">
+        <span class="control-heading"><span>Vibrato rate</span><output id="rate-value" for="rate"></output></span>
+        <span class="control-description">Pitch vibrato speed</span>
+        <input id="rate" type="range" min="4" max="10" step="0.1" value="6.5">
       </label>
       <label class="control" for="depth">
-        <span class="control-heading"><span>Rumble depth</span><output id="depth-value" for="depth"></output></span>
-        <span class="control-description">LFO depth (pitch detune)</span>
-        <input id="depth" type="range" min="0" max="1" step="0.01" value="0.32">
+        <span class="control-heading"><span>Vibrato depth</span><output id="depth-value" for="depth"></output></span>
+        <span class="control-description">Pitch vibrato amount</span>
+        <input id="depth" type="range" min="0" max="1" step="0.01" value="0.38">
+      </label>
+      <label class="control" for="phraseRate">
+        <span class="control-heading"><span>Phrase rate</span><output id="phraseRate-value" for="phraseRate"></output></span>
+        <span class="control-description">Slow melodic drift speed</span>
+        <input id="phraseRate" type="range" min="0.3" max="1.2" step="0.01" value="0.65">
+      </label>
+      <label class="control" for="phraseDepth">
+        <span class="control-heading"><span>Phrase depth</span><output id="phraseDepth-value" for="phraseDepth"></output></span>
+        <span class="control-description">Slow melodic drift amount</span>
+        <input id="phraseDepth" type="range" min="0" max="1" step="0.01" value="0.42">
       </label>
       <label class="control" for="gain">
         <span class="control-heading"><span>Master gain</span><output id="gain-value" for="gain"></output></span>
         <span class="control-description">Master output gain</span>
-        <input id="gain" type="range" min="0.15" max="0.8" step="0.01" value="0.48">
+        <input id="gain" type="range" min="0.15" max="0.8" step="0.01" value="0.5">
       </label>
       <div class="control control-effect">
         <span class="control-heading">
-          <label class="control-toggle" for="cheekClapz">
-            <input id="cheekClapz" type="checkbox">
-            <span>Cheek Clapz</span>
+          <label class="control-toggle" for="flutterGate">
+            <input id="flutterGate" type="checkbox">
+            <span>Flutter Gate</span>
           </label>
-          <output id="cheekClapzSpeed-value" for="cheekClapzSpeed"></output>
+          <output id="flutterGateSpeed-value" for="flutterGateSpeed"></output>
         </span>
-        <span class="control-description">Output gate stutter · gate rate</span>
-        <input id="cheekClapzSpeed" type="range" min="2" max="24" step="0.5" value="8" aria-label="Gate rate">
+        <span class="control-description">Soft tremolo gate · gate rate</span>
+        <input id="flutterGateSpeed" type="range" min="2" max="18" step="0.5" value="6" aria-label="Gate rate">
       </div>
-      <label class="control control-effect" for="sphincterShift">
-        <span class="control-heading"><span>Sphincter Shift</span><output id="sphincterShift-value" for="sphincterShift"></output></span>
+      <label class="control control-effect" for="pitchGlide">
+        <span class="control-heading"><span>Pitch Glide</span><output id="pitchGlide-value" for="pitchGlide"></output></span>
         <span class="control-description">Pitch sweep (frequency glide)</span>
-        <input id="sphincterShift" class="bipolar" type="range" min="-1" max="1" step="0.01" value="0">
+        <input id="pitchGlide" class="bipolar" type="range" min="-1" max="1" step="0.01" value="0.15">
       </label>
     `;
   }
@@ -178,28 +197,38 @@
     }
   }
 
+  function syncWaveformPicker() {
+    document.querySelectorAll('.waveform-picker-button').forEach(button => {
+      const selected = button.dataset.waveform === settings.waveform;
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-checked', String(selected));
+    });
+  }
+
   function syncControls() {
     Object.keys(controls).forEach(name => {
       controls[name].value = settings[name];
       outputs[name].textContent = formatters[name](settings[name]);
     });
-    const cheekClapz = document.getElementById('cheekClapz');
-    if (cheekClapz) {
-      cheekClapz.checked = settings.cheekClapz;
-      document.getElementById('cheekClapzSpeed').disabled = !settings.cheekClapz;
+    const flutterGate = document.getElementById('flutterGate');
+    if (flutterGate) {
+      flutterGate.checked = settings.flutterGate;
+      document.getElementById('flutterGateSpeed').disabled = !settings.flutterGate;
     }
+    syncWaveformPicker();
   }
 
   function updateUrl() {
     const url = new URL(window.location.href);
+    url.searchParams.set('instrument', ID);
     url.searchParams.set(PARAMETER, encodeSettings());
     window.history.replaceState({}, '', url);
   }
 
   async function share() {
     const shareUrl = new URL(window.location.href);
+    shareUrl.searchParams.set('instrument', ID);
     shareUrl.searchParams.set(PARAMETER, encodeSettings());
-    shareUrl.searchParams.delete('instrument');
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(shareUrl.toString());
@@ -224,7 +253,7 @@
     settings = { ...defaults };
     syncControls();
     updateUrl();
-    flatulenceFactory.setGain(settings.gain);
+    queefFactory.setGain(settings.gain);
     setStatus('Settings reset to factory defaults.');
   }
 
@@ -246,7 +275,7 @@
   }
 
   function beginMascotHold() {
-    const mascot = document.getElementById('fart-mascot');
+    const mascot = document.getElementById('queef-mascot');
     clearMascotAnimation(mascot);
     void mascot.offsetWidth;
     const side = lungeSide;
@@ -256,7 +285,7 @@
     mascot.classList.add(outClass);
     mascot.addEventListener('animationend', function onLungeOut(event) {
       if (event.target !== mascot) return;
-      if (!event.animationName.startsWith('fart-lunge-out-')) return;
+      if (!event.animationName.startsWith('queef-lunge-out-')) return;
       if (!isHolding) return;
       mascot.classList.remove(outClass);
       mascot.classList.add(jiggleClass);
@@ -264,7 +293,7 @@
   }
 
   function endMascotHold() {
-    const mascot = document.getElementById('fart-mascot');
+    const mascot = document.getElementById('queef-mascot');
     if (!mascot) return;
     const matrix = new DOMMatrix(getComputedStyle(mascot).transform);
     const { m41: x, m42: y } = matrix;
@@ -274,46 +303,46 @@
     mascot.animate([
       { transform: `translate(${x}px, ${y}px)` },
       { transform: 'translate(0, 0)' }
-    ], { duration: 260, easing: 'ease-in' }).onfinish = () => {
+    ], { duration: 300, easing: 'ease-in' }).onfinish = () => {
       mascot.style.transform = '';
     };
   }
 
   function triggerRipple() {
-    const ripple = document.getElementById('fart-ripple');
+    const ripple = document.getElementById('queef-ripple');
     ripple.classList.remove('is-active');
     void ripple.offsetWidth;
     ripple.classList.add('is-active');
   }
 
-  function beginHold(fartButton, pointerId = null) {
+  function beginHold(queefButton, pointerId = null) {
     if (isHolding) return;
     isHolding = true;
     activePointerId = pointerId;
-    fartButton.classList.add('is-held');
+    queefButton.classList.add('is-held');
     triggerRipple();
     beginMascotHold();
     try {
-      flatulenceFactory.start(settings);
-      setStatus('Hold for a long one…');
+      queefFactory.start(settings);
+      setStatus('Hold for a melodic tone…');
     } catch (error) {
       isHolding = false;
       activePointerId = null;
-      fartButton.classList.remove('is-held');
+      queefButton.classList.remove('is-held');
       endMascotHold();
       setStatus(error.message || 'Audio could not be started.');
     }
   }
 
-  function endHold(fartButton, pointerId = null) {
+  function endHold(queefButton, pointerId = null) {
     if (!isHolding) return;
     if (pointerId !== null && activePointerId !== null && pointerId !== activePointerId) return;
     isHolding = false;
     activePointerId = null;
-    fartButton.classList.remove('is-held');
+    queefButton.classList.remove('is-held');
     endMascotHold();
-    flatulenceFactory.stop();
-    setStatus('Fart deployed. Adjust the controls and try again.');
+    queefFactory.stop();
+    setStatus('Queef deployed. Adjust the controls and try again.');
   }
 
   function onPanelOpen() {
@@ -328,7 +357,7 @@
     document.getElementById('instrument-stage').innerHTML = renderStage();
     document.getElementById('instrument-controls').innerHTML = renderControls();
 
-    flatulenceFactory = window.createFlatulenceFactory();
+    queefFactory = window.createQueefFactory();
     Object.keys(controls).forEach(name => { delete controls[name]; delete outputs[name]; });
 
     Object.keys(ranges).forEach(name => {
@@ -338,53 +367,63 @@
         settings[name] = clamp(Number(event.target.value), ranges[name]);
         outputs[name].textContent = formatters[name](settings[name]);
         updateUrl();
-        if (name === 'gain') flatulenceFactory.setGain(settings.gain);
+        if (name === 'gain') queefFactory.setGain(settings.gain);
       }, { signal });
     });
 
-    const cheekClapz = document.getElementById('cheekClapz');
-    cheekClapz.addEventListener('change', event => {
-      settings.cheekClapz = event.target.checked;
-      document.getElementById('cheekClapzSpeed').disabled = !settings.cheekClapz;
+    const flutterGate = document.getElementById('flutterGate');
+    flutterGate.addEventListener('change', event => {
+      settings.flutterGate = event.target.checked;
+      document.getElementById('flutterGateSpeed').disabled = !settings.flutterGate;
       updateUrl();
     }, { signal });
+
+    document.querySelectorAll('.waveform-picker-button').forEach(button => {
+      button.addEventListener('click', () => {
+        const waveform = button.dataset.waveform;
+        if (!WAVEFORMS.includes(waveform) || settings.waveform === waveform) return;
+        settings.waveform = waveform;
+        syncWaveformPicker();
+        updateUrl();
+      }, { signal });
+    });
 
     const encoded = new URLSearchParams(window.location.search).get(PARAMETER);
     if (encoded) {
       const decoded = decodeSettings(encoded);
       if (decoded) settings = decoded;
-      else setStatus('That FartID was not recognized; defaults loaded.');
+      else setStatus('That QueefID was not recognized; defaults loaded.');
     }
     syncControls();
 
-    const fartButton = document.getElementById('fart-button');
-    fartButton.addEventListener('pointerdown', event => {
+    const queefButton = document.getElementById('queef-button');
+    queefButton.addEventListener('pointerdown', event => {
       if (event.button !== 0) return;
       event.preventDefault();
-      fartButton.setPointerCapture(event.pointerId);
-      beginHold(fartButton, event.pointerId);
+      queefButton.setPointerCapture(event.pointerId);
+      beginHold(queefButton, event.pointerId);
     }, { signal });
-    fartButton.addEventListener('pointerup', event => {
-      if (fartButton.hasPointerCapture(event.pointerId)) fartButton.releasePointerCapture(event.pointerId);
-      endHold(fartButton, event.pointerId);
+    queefButton.addEventListener('pointerup', event => {
+      if (queefButton.hasPointerCapture(event.pointerId)) queefButton.releasePointerCapture(event.pointerId);
+      endHold(queefButton, event.pointerId);
     }, { signal });
-    fartButton.addEventListener('pointercancel', event => endHold(fartButton, event.pointerId), { signal });
-    fartButton.addEventListener('lostpointercapture', event => endHold(fartButton, event.pointerId), { signal });
-    fartButton.addEventListener('keydown', event => {
+    queefButton.addEventListener('pointercancel', event => endHold(queefButton, event.pointerId), { signal });
+    queefButton.addEventListener('lostpointercapture', event => endHold(queefButton, event.pointerId), { signal });
+    queefButton.addEventListener('keydown', event => {
       if (event.repeat) return;
       if (event.code !== 'Space' && event.code !== 'Enter') return;
       event.preventDefault();
-      beginHold(fartButton);
+      beginHold(queefButton);
     }, { signal });
-    fartButton.addEventListener('keyup', event => {
+    queefButton.addEventListener('keyup', event => {
       if (event.code !== 'Space' && event.code !== 'Enter') return;
       event.preventDefault();
-      endHold(fartButton);
+      endHold(queefButton);
     }, { signal });
   }
 
   function unmount() {
-    if (isHolding && flatulenceFactory) flatulenceFactory.stop();
+    if (isHolding && queefFactory) queefFactory.stop();
     isHolding = false;
     activePointerId = null;
     if (mountAbort) {
@@ -397,10 +436,10 @@
   }
 
   function getAudio() {
-    return flatulenceFactory;
+    return queefFactory;
   }
 
-  window.FartInstrument = {
+  window.QueefInstrument = {
     id: ID,
     displayName: DISPLAY_NAME,
     playActionLabel: PLAY_ACTION_LABEL,

@@ -3,33 +3,35 @@
  * Front-of-house for the whole atmospheric sound lab — not any one instrument.
  *
  * Owns shared lab chrome: status line, advanced panel open/close, WAV recording
- * orchestration, and instrument mounting. Each instrument (starting with Fart)
- * plugs in through a small API: mount, getAudio, share, reset, getGain.
+ * orchestration, instrument picker, and instrument mounting. Each instrument plugs
+ * in through a small API: mount, unmount, getAudio, share, reset, getGain.
  *
  * Boot flow:
  *   initialize()
- *     → activeInstrument = FartInstrument
- *     → activeInstrument.mount({ setStatus })
- *     → wire Record, Share, Controls, and panel handlers
+ *     → resolveInitialInstrument() from URL
+ *     → switchInstrument(id) → mount active instrument
+ *     → wire Record, Share, Controls, picker, and panel handlers
  *
  * Runtime flow:
- *   Record        → countdown → capture tap on activeInstrument.getAudio()
- *   Share         → activeInstrument.share()
- *   Reset         → activeInstrument.reset()
- *   Controls open → activeInstrument.onPanelOpen() (if provided)
+ *   Instrument pick → switchInstrument(id)
+ *   Record          → countdown → capture tap on activeInstrument.getAudio()
+ *   Share           → activeInstrument.share()
+ *   Reset           → activeInstrument.reset()
+ *   Controls open   → activeInstrument.onPanelOpen() (if provided)
  *
  * The lab stays open late. Instruments come and go. The recording booth is shared.
  */
 (() => {
   'use strict';
 
-  // --- Instrument registry (one stall today, a whole row tomorrow) ---
+  const DEFAULT_INSTRUMENT = 'fart';
   const instruments = {
-    fart: () => window.FartInstrument
+    fart: () => window.FartInstrument,
+    queef: () => window.QueefInstrument
   };
   let activeInstrument = null;
+  let activeInstrumentId = DEFAULT_INSTRUMENT;
 
-  // --- Recording state (the black box flight recorder for gas) ---
   const RECORDING_MAX_MS = 60000;
   const SILENCE_STOP_MS = 1000;
   const recording = {
@@ -40,6 +42,82 @@
 
   function setStatus(message) {
     document.getElementById('status').textContent = message;
+  }
+
+  function resolveInitialInstrument() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('QueefID')) return 'queef';
+    if (params.get('FartID')) return 'fart';
+    const instrument = params.get('instrument');
+    if (instrument && instruments[instrument]) return instrument;
+    return DEFAULT_INSTRUMENT;
+  }
+
+  function updateInstrumentChrome() {
+    const shareButton = document.getElementById('share-button');
+    const shareNote = document.getElementById('share-note');
+    const recordingTitle = document.getElementById('recording-title');
+    const recordingSection = document.getElementById('recording-section');
+    const recordingExplainer = document.getElementById('recording-explainer');
+    const closeRecording = document.getElementById('close-recording');
+
+    shareButton.title = `Copy shareable ${activeInstrument.shareParameter} URL`;
+    shareNote.innerHTML = `Your controls are encoded into the page URL as <strong>${activeInstrument.shareParameter}</strong>.`;
+    recordingTitle.textContent = activeInstrument.recordingTitle;
+    recordingSection.setAttribute('aria-label', activeInstrument.recordingTitle);
+    closeRecording.setAttribute('aria-label', `Close ${activeInstrument.recordingTitle.toLowerCase()}`);
+    closeRecording.title = `Close ${activeInstrument.recordingTitle.toLowerCase()}`;
+    recordingExplainer.textContent = `Recording stops after 1 second of silence once a ${activeInstrument.displayName.toLowerCase()} signal is detected, or automatically at the 60 second hard limit.`;
+  }
+
+  function updateInstrumentPicker() {
+    document.querySelectorAll('[data-instrument-id]').forEach(button => {
+      const selected = button.dataset.instrumentId === activeInstrumentId;
+      button.setAttribute('aria-selected', String(selected));
+      button.classList.toggle('is-selected', selected);
+    });
+  }
+
+  function updateInstrumentUrl(id) {
+    const url = new URL(window.location.href);
+    if (id === DEFAULT_INSTRUMENT) url.searchParams.delete('instrument');
+    else url.searchParams.set('instrument', id);
+    window.history.replaceState({}, '', url);
+  }
+
+  async function cancelRecordingForSwitch() {
+    if (recording.stopping) return;
+    if (recording.countingDown) {
+      recording.countingDown = false;
+      recording.stopRequested = false;
+      clearRecordingTimers();
+      updateRecordingButton();
+      return;
+    }
+    if (recording.active && activeInstrument) {
+      recording.stopRequested = true;
+      if (!recording.starting) await stopRecording(activeInstrument.getAudio(), 'manual', true);
+    }
+  }
+
+  async function switchInstrument(id) {
+    if (!instruments[id] || id === activeInstrumentId) return;
+    await cancelRecordingForSwitch();
+    togglePanel(false);
+
+    if (activeInstrument && activeInstrument.unmount) activeInstrument.unmount();
+
+    activeInstrumentId = id;
+    activeInstrument = instruments[id]();
+    document.getElementById('instrument-stage').dataset.instrument = id;
+    document.querySelector('.console').dataset.instrument = id;
+    document.body.dataset.instrument = id;
+
+    activeInstrument.mount({ setStatus });
+    updateInstrumentChrome();
+    updateInstrumentPicker();
+    updateInstrumentUrl(id);
+    setStatus('Audio is waiting for your first press.');
   }
 
   function togglePanel(open) {
@@ -54,12 +132,10 @@
     if (open && activeInstrument.onPanelOpen) activeInstrument.onPanelOpen();
   }
 
-  // --- WAV export (bottling the atmosphere for posterity) ---
   function writeString(view, offset, value) {
     for (let index = 0; index < value.length; index += 1) view.setUint8(offset + index, value.charCodeAt(index));
   }
 
-  // Hand-rolled RIFF writer — no npm, no dependencies, no dignity either.
   function encodeWav(samples, sampleRate) {
     const bytesPerSample = 2;
     const dataSize = samples.length * bytesPerSample;
@@ -91,7 +167,8 @@
       date.getFullYear(), pad(date.getMonth() + 1), pad(date.getDate()),
       pad(date.getHours()), pad(date.getMinutes()), pad(date.getSeconds())
     ].join('');
-    return `Furious_Flatulence-${timestamp}.wav`;
+    const instrument = activeInstrument.displayName || 'Recording';
+    return `${instrument}_Fart-O-Izer_${timestamp}.wav`;
   }
 
   function clearRecordingTimers() {
@@ -139,7 +216,7 @@
     document.getElementById('recording-collapse').setAttribute('aria-expanded', 'true');
   }
 
-  async function stopRecording(audio, reason) {
+  async function stopRecording(audio, reason, silent = false) {
     if (!recording.active || recording.stopping) return;
     recording.active = false;
     recording.stopping = true;
@@ -148,10 +225,13 @@
     try {
       const result = await audio.stopCapture();
       if (!recording.sawSignal || !result.samples.length) {
-        showRecordingSection(0, 'countdown');
-        setStatus(reason === 'manual' ? 'No sound was captured.' : 'No fart signal was captured.');
+        if (!silent) showRecordingSection(0, 'countdown');
+        if (!silent) {
+          setStatus(reason === 'manual' ? 'No sound was captured.' : `No ${activeInstrument.displayName.toLowerCase()} signal was captured.`);
+        }
         return;
       }
+      if (silent) return;
       lastBlob = encodeWav(result.samples, result.sampleRate);
       recording.filename = createRecordingFilename();
       if (recording.lastBlobURL) URL.revokeObjectURL(recording.lastBlobURL);
@@ -161,23 +241,23 @@
       link.download = recording.filename;
       link.click();
       showRecordingSection(result.samples.length / result.sampleRate);
-      setStatus('Fart recording ready to download again.');
+      setStatus(`${activeInstrument.recordingTitle} ready to download again.`);
     } catch (error) {
-      setStatus(error.message || 'The recording could not be saved.');
-      showRecordingSection(0, 'countdown');
+      if (!silent) {
+        setStatus(error.message || 'The recording could not be saved.');
+        showRecordingSection(0, 'countdown');
+      }
     } finally {
       recording.stopping = false;
     }
   }
 
-  // Record button: start, stop, or chicken out during the countdown.
   async function startRecording() {
     const audio = activeInstrument.getAudio();
     if (recording.stopping) {
       setStatus('Finishing the previous recording. Try again in a moment.');
       return;
     }
-    // Record doubles as stop — same button, different levels of regret.
     if (recording.active || recording.countingDown) {
       recording.stopRequested = true;
       if (recording.countingDown) {
@@ -188,7 +268,6 @@
       } else if (!recording.starting) {
         await stopRecording(audio, 'manual');
       }
-      // While startCapture is in flight, stopRequested is honored when it resolves.
       return;
     }
     recording.countingDown = true;
@@ -210,14 +289,12 @@
     showRecordingSection(0, 'active');
     try {
       await audio.startCapture(activeInstrument.getGain());
-      // Race guard — don't leave the recorder running with no way to pull the chain.
       recording.starting = false;
       if (recording.stopRequested) {
         await stopRecording(audio, 'manual');
         return;
       }
       recording.maxTimer = window.setTimeout(() => stopRecording(audio, 'maximum'), RECORDING_MAX_MS);
-      // Poll RMS — auto-stop when the room has aired out (1s of silence).
       recording.rmsTimer = window.setInterval(() => {
         const rms = audio.getRMS();
         if (rms >= 0.01) {
@@ -228,7 +305,7 @@
           if (Date.now() - recording.silenceStarted >= SILENCE_STOP_MS) stopRecording(audio, 'silence');
         }
       }, 50);
-      setStatus('Recording armed. Press FART to capture the evidence.');
+      setStatus(`Recording armed. Press ${activeInstrument.playActionLabel} to capture the evidence.`);
     } catch (error) {
       clearRecordingTimers();
       await audio.stopCapture().catch(() => {});
@@ -240,11 +317,19 @@
     }
   }
 
-  // --- Initialization (open the lab, mount the first instrument) ---
   function initialize() {
-    activeInstrument = instruments.fart();
+    activeInstrumentId = resolveInitialInstrument();
+    activeInstrument = instruments[activeInstrumentId]();
+    document.getElementById('instrument-stage').dataset.instrument = activeInstrumentId;
+    document.querySelector('.console').dataset.instrument = activeInstrumentId;
+    document.body.dataset.instrument = activeInstrumentId;
     activeInstrument.mount({ setStatus });
+    updateInstrumentChrome();
+    updateInstrumentPicker();
 
+    document.querySelectorAll('[data-instrument-id]').forEach(button => {
+      button.addEventListener('click', () => switchInstrument(button.dataset.instrumentId));
+    });
     document.getElementById('record-button').addEventListener('click', startRecording);
     document.getElementById('share-button').addEventListener('click', () => activeInstrument.share());
     document.getElementById('advanced-toggle').addEventListener('click', () => togglePanel(true));
@@ -264,7 +349,6 @@
     });
   }
 
-  // DOM ready check — don't leave users waiting with unpressed potential.
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize);
   else initialize();
 })();

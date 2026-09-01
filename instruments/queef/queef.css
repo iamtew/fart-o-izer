@@ -1,0 +1,173 @@
+/*
+ * Visual skin for the Queef instrument.
+ * Rose/mauve launch control, QueenQueef mascot theatrics, softer animations.
+ *
+ * Scoped to the Queef play surface (#instrument-stage[data-instrument="queef"])
+ * and its control grid. The lab shell in style.css owns shared layout chrome.
+ */
+#instrument-stage[data-instrument="queef"] {
+  display: contents;
+}
+
+/* Rose console glow when Queef is active. */
+.console[data-instrument="queef"]::before {
+  background: radial-gradient(circle, rgba(180, 110, 140, 0.2) 0%, transparent 68%);
+}
+
+.queef-button {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-content: center;
+  width: min(87vw, 24rem);
+  aspect-ratio: 1;
+  border: 1px solid rgba(180, 110, 140, 0.75);
+  border-radius: 50%;
+  color: #1a1218;
+  background: #b46e8c;
+  box-shadow: 0 1rem 2rem var(--shadow), 0 0 0 0.75rem rgba(180, 110, 140, 0.12), inset 0 -1rem 0 rgba(120, 68, 92, 0.35);
+  cursor: pointer;
+  isolation: isolate;
+  user-select: none;
+  -webkit-touch-callout: none;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, width 200ms ease;
+}
+.queef-button:hover {
+  background: #c47a9a;
+  box-shadow: 0 1.15rem 2.5rem var(--shadow), 0 0 0 0.9rem rgba(180, 110, 140, 0.18), inset 0 -1rem 0 rgba(120, 68, 92, 0.35);
+}
+.queef-button:active, .queef-button.is-held {
+  transform: scale(0.96);
+  background: #8f5672;
+  box-shadow: 0 0.5rem 1rem var(--shadow), 0 0 0 0.6rem rgba(180, 110, 140, 0.1), inset 0 -0.5rem 0 rgba(120, 68, 92, 0.4);
+}
+.queef-button:focus-visible { outline: 3px solid #e8a8c4; outline-offset: 4px; }
+.queef-button .button-ring { position: absolute; inset: 7%; border: 1px solid rgba(26, 18, 24, 0.2); border-radius: 50%; }
+.queef-mascot {
+  position: relative;
+  display: block;
+  width: 73%;
+  height: auto;
+  margin: 0 auto;
+  object-fit: contain;
+  pointer-events: none;
+  transform: translate(0, 0);
+  filter: drop-shadow(0 0.35rem 0.6rem rgba(0, 0, 0, 0.28));
+}
+
+.queef-button .button-ripple { position: absolute; inset: 0; border: 3px solid #e8a8c4; border-radius: 50%; opacity: 0; pointer-events: none; }
+.queef-button .button-ripple.is-active { animation: queef-ripple 780ms ease-out; }
+@keyframes queef-ripple {
+  0% { transform: scale(1); opacity: 0.55; filter: blur(0px); }
+  100% { transform: scale(1.55); opacity: 0; filter: blur(6px); }
+}
+
+@keyframes queef-lunge-out-right {
+  0% { transform: translate(0, 0); }
+  40% { transform: translate(28%, 1%); }
+  100% { transform: translate(26%, 14%); }
+}
+@keyframes queef-lunge-out-left {
+  0% { transform: translate(0, 0); }
+  40% { transform: translate(-28%, 1%); }
+  100% { transform: translate(-26%, 14%); }
+}
+@keyframes queef-jiggle-right {
+  0% { transform: translate(26%, 14%) rotate(0deg) scale(1); }
+  25% { transform: translate(28%, 12%) rotate(2deg) scale(1.02); }
+  50% { transform: translate(24%, 15%) rotate(-2deg) scale(0.98); }
+  75% { transform: translate(27%, 13%) rotate(2deg) scale(1.01); }
+  100% { transform: translate(26%, 14%) rotate(0deg) scale(1); }
+}
+@keyframes queef-jiggle-left {
+  0% { transform: translate(-26%, 14%) rotate(0deg) scale(1); }
+  25% { transform: translate(-28%, 12%) rotate(-2deg) scale(1.02); }
+  50% { transform: translate(-24%, 15%) rotate(2deg) scale(0.98); }
+  75% { transform: translate(-27%, 13%) rotate(-2deg) scale(1.01); }
+  100% { transform: translate(-26%, 14%) rotate(0deg) scale(1); }
+}
+.queef-mascot.lunge-out-right { animation: queef-lunge-out-right 280ms ease-out forwards; }
+.queef-mascot.lunge-out-left { animation: queef-lunge-out-left 280ms ease-out forwards; }
+.queef-mascot.jiggle-right { animation: queef-jiggle-right 140ms linear infinite; }
+.queef-mascot.jiggle-left { animation: queef-jiggle-left 140ms linear infinite; }
+
+/* Waveform picker — Queef-only tone shape selector. */
+body[data-instrument="queef"] .waveform-picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+body[data-instrument="queef"] .waveform-picker-button {
+  min-height: 2.1rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  cursor: pointer;
+  font-size: 0.82rem;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+body[data-instrument="queef"] .waveform-picker-button:hover {
+  color: var(--ink);
+  border-color: rgba(180, 110, 140, 0.55);
+  background: var(--panel-light);
+}
+body[data-instrument="queef"] .waveform-picker-button.is-selected {
+  color: var(--ink);
+  border-color: rgba(180, 110, 140, 0.75);
+  background: color-mix(in srgb, #b46e8c 22%, var(--panel-light));
+  box-shadow: inset 0 0 0 1px rgba(180, 110, 140, 0.35);
+}
+body[data-instrument="queef"] .waveform-picker-button:focus-visible {
+  outline: 3px solid #e8a8c4;
+  outline-offset: 2px;
+}
+
+body[data-instrument="queef"] #instrument-controls .control-effect:has(#flutterGate:not(:checked)) #flutterGateSpeed {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+body[data-instrument="queef"] #instrument-controls input[type="range"].bipolar {
+  background: linear-gradient(
+    to right,
+    #8f5672 0%,
+    #6d4058 48%,
+    var(--line) 48%,
+    var(--line) 52%,
+    #6d4058 52%,
+    #b46e8c 100%
+  );
+}
+body[data-instrument="queef"] #instrument-controls input[type="range"].bipolar::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, #8f5672 70%, var(--panel)) 0%,
+    color-mix(in srgb, #6d4058 55%, var(--panel)) 47%,
+    #e8a8c4 47%,
+    #e8a8c4 53%,
+    color-mix(in srgb, #6d4058 55%, var(--panel)) 53%,
+    color-mix(in srgb, #b46e8c 55%, var(--panel)) 100%
+  );
+}
+body[data-instrument="queef"] #instrument-controls input[type="range"].bipolar::-moz-range-track {
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, #8f5672 70%, var(--panel)) 0%,
+    color-mix(in srgb, #6d4058 55%, var(--panel)) 47%,
+    #e8a8c4 47%,
+    #e8a8c4 53%,
+    color-mix(in srgb, #6d4058 55%, var(--panel)) 53%,
+    color-mix(in srgb, #b46e8c 55%, var(--panel)) 100%
+  );
+}
+
+@media (max-width: 759.98px) {
+  body.panel-open .queef-button { width: min(57vw, 16.5rem); }
+}
+
+@media (max-height: 800px) {
+  .queef-button { width: min(75vw, 21rem); }
+}
