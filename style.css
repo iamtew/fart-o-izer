@@ -78,6 +78,22 @@ button { color: inherit; }
 .primary-column { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 
 .masthead { position: relative; z-index: 1; width: min(100%, 48rem); margin: 0 auto 0.5rem; }
+.masthead-github {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+.masthead-github:hover { border-color: var(--green-deep); color: var(--green-light); background: var(--panel-light); }
+.github-icon { display: block; width: 1rem; height: 1rem; }
 .eyebrow, .section-label {
   margin: 0;
   color: var(--green-light);
@@ -164,7 +180,7 @@ body[data-instrument="queef"] .instrument-picker-button.is-selected {
 .status { position: relative; z-index: 1; min-height: 1.25rem; margin: 0; color: var(--muted); font-size: 0.82rem; }
 
 /* Shared focus ring for lab chrome — instruments may override their own controls. */
-.advanced-toggle:focus-visible, .share-button:focus-visible, .record-button:focus-visible, .icon-button:focus-visible, input:focus-visible { outline: 3px solid var(--brown-light); outline-offset: 4px; }
+.advanced-toggle:focus-visible, .share-button:focus-visible, .record-button:focus-visible, .icon-button:focus-visible, .masthead-github:focus-visible, input:focus-visible { outline: 3px solid var(--brown-light); outline-offset: 4px; }
 
 /* --- Action bar (record, controls, share — the accessory tray) --- */
 .main-actions { position: relative; z-index: 1; display: flex; justify-content: center; align-items: center; gap: 0.65rem; min-height: 2.75rem; }
