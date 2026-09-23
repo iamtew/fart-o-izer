@@ -93,7 +93,7 @@ button { color: inherit; }
   transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
 }
 .masthead-github:hover { border-color: var(--green-deep); color: var(--green-light); background: var(--panel-light); }
-.github-icon { display: block; width: 1rem; height: 1rem; }
+.github-icon { font-size: 1rem; }
 .eyebrow, .section-label {
   margin: 0;
   color: var(--green-light);
