@@ -223,23 +223,36 @@ body {
 
 .mixer-row {
   display: flex;
-  gap: 0.5rem;
+  flex: 1;
+  gap: 1.5rem;
   align-items: stretch;
   min-height: 0;
   padding-bottom: 0.25rem;
 }
+.mixer-channels {
+  display: flex;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  align-items: stretch;
+  overflow-x: auto;
+}
 .strip {
   display: flex;
-  flex: 0 0 7.4rem;
+  flex: 0 0 5.4rem;
   flex-direction: column;
-  gap: 0.35rem;
-  width: 7.4rem;
-  padding: 0.45rem;
+  gap: 0.3rem;
+  width: 5.4rem;
+  height: 100%;
+  padding: 0.4rem;
   border: 1px solid var(--line);
   border-radius: 0.45rem;
   background: var(--panel);
 }
-.strip.is-master { border-color: var(--brown-light); }
+.strip.is-master {
+  flex-shrink: 0;
+  border-color: var(--brown-light);
+}
 .strip-name {
   margin: 0;
   padding: 0.35rem 0.25rem;
@@ -253,30 +266,130 @@ body {
 .strip-param, .strip-fader {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 0.1rem;
   color: var(--muted);
   font-size: 0.65rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.strip-param input { width: 100%; }
-.strip-fader {
+.knob {
   position: relative;
-  flex: 1;
-  min-height: 7.5rem;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 30%, #3a342c, var(--brown-deep) 70%);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
-.strip-fader span { text-align: center; }
-.strip-fader input {
+.knob::after {
+  content: "";
   position: absolute;
   left: 50%;
-  top: 58%;
-  width: 6.4rem;
+  top: 0.18rem;
+  width: 3px;
+  height: 0.85rem;
+  margin-left: -1.5px;
+  background: #f4efe6;
+  border-radius: 1px;
+  transform-origin: 50% 1.02rem;
+  transform: rotate(var(--ang, 0deg));
+  pointer-events: none;
+}
+.knob input {
+  position: absolute;
+  inset: 0;
   margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.knob:focus-within { outline: 3px solid var(--brown-light); outline-offset: 2px; }
+.strip-ms {
+  display: flex;
+  gap: 0.2rem;
+  width: 100%;
+}
+.strip-ms button {
+  flex: 1;
+  min-height: 1.45rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.25rem;
+  color: var(--muted);
+  background: var(--panel-light);
+  font: inherit;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+.strip-ms button[aria-pressed="true"] {
+  color: #1c140c;
+  background: var(--brown-light);
+  border-color: var(--brown-light);
+}
+.strip-fader {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+.strip-fader-row {
+  position: relative;
+  flex: 1;
+  min-height: 8rem;
+  width: 100%;
+}
+.strip-meter {
+  position: absolute;
+  left: 0.15rem;
+  top: 0.2rem;
+  width: 0.85rem;
+  height: calc(100% - 0.4rem);
+  background: #221f1b;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.strip-fader-row input {
+  position: absolute;
+  left: 58%;
+  top: 50%;
+  width: var(--fader-len, 12rem);
+  height: 1.35rem;
+  margin: 0;
+  background: transparent;
   transform: translate(-50%, -50%) rotate(-90deg);
+}
+.strip-fader-row input[type="range"]::-webkit-slider-thumb {
+  width: 0.42rem;
+  height: 1.2rem;
+  margin-top: -0.38rem;
+  border-radius: 2px;
+  transform: none;
+}
+.strip-fader-row input[type="range"]:hover::-webkit-slider-thumb {
+  transform: none;
+}
+.strip-fader-row input[type="range"]::-moz-range-thumb {
+  width: 0.42rem;
+  height: 1.2rem;
+  border-radius: 2px;
+}
+.mix-tip {
+  position: fixed;
+  z-index: 40;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--brown-light);
+  border-radius: 0.25rem;
+  color: #1c140c;
+  background: var(--brown-light);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  white-space: nowrap;
+  transform: translate(0.35rem, -50%);
 }
 
 .pad:focus-visible, .step:focus-visible, .cell:focus-visible, .key:focus-visible,
 .play-button:focus-visible, .reset-button:focus-visible, .text-button:focus-visible, .chip:focus-visible,
+.strip-ms button:focus-visible,
 .kit-switch button:focus-visible, .view-switch button:focus-visible, .mpc-home:focus-visible {
   outline: 3px solid var(--brown-light);
   outline-offset: 2px;

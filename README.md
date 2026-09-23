@@ -42,7 +42,7 @@ A brighter, more melodic voice — higher pitch, bandpass resonance, vibrato and
 
 ## Multi Poop Composer
 
-Open [mpc.html](mpc.html), or the **MPC** link on the lab masthead. One bar loops as 16 sixteenths. The drum machine is synthesized, not sampled: an **808** kit and a **909** kit, eight pads each (kick, snare, clap, closed hat, open hat, low/mid/high tom). **Add Fart** and **Add Queef** create tracks you paint on the piano roll; several of each can play at once. Every drum pad and every added track gets a mixer strip (gain, high, mid, low, filter, pan, level), plus a master strip. **Reset** restores the whole composer; double-click a mixer slider or BPM to restore that control. The pattern stays in this browser via `localStorage`. Sample upload is not part of this page.
+Open [mpc.html](mpc.html), or the **MPC** link on the lab masthead. One bar loops as 16 sixteenths. The drum machine is synthesized, not sampled: an **808** kit and a **909** kit, eight pads each (kick, snare, clap, closed hat, open hat, low/mid/high tom). **Add Fart** and **Add Queef** create tracks you paint on the piano roll; several of each can play at once. Every drum pad and every added track gets a mixer strip (rotary gain, EQ, bipolar filter, pan, plus a fader with a post-fader meter), plus a master strip on the right. Gain is unity at noon: left is off, right is +20 dB. Filter is off at noon: left is LPF, right is HPF. **Reset** restores the whole composer; double-click a mixer control or BPM to restore that control. Dragging a mixer knob or fader shows the new value beside it. The pattern stays in this browser via `localStorage`. Sample upload is not part of this page.
 
 ## Audio architecture
 

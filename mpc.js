@@ -30,14 +30,18 @@
   ];
   const TOMS = { tomLow: 80, tomMid: 120, tomHigh: 180 };
   const MIX_PARAMS = [
-    ['gain', 'Gain', 0, 1, 0.01],
+    ['gain', 'Gain', -1, 1, 0.01],
     ['high', 'High', -12, 12, 0.1],
     ['mid', 'Mid', -12, 12, 0.1],
     ['low', 'Low', -12, 12, 0.1],
-    ['filter', 'Filter', 200, 18000, 1],
+    ['filter', 'Filter', -1, 1, 0.01],
     ['pan', 'Pan', -1, 1, 0.01],
     ['level', 'Level', 0, 1, 0.01]
   ];
+  const LPF_OPEN = 18000;
+  const LPF_MIN = 200;
+  const HPF_OPEN = 20;
+  const HPF_MAX = 18000;
 
   function stepSeconds(bpm) {
     return 60 / bpm / 4;
@@ -58,20 +62,126 @@
   }
 
   function defaultMix() {
-    return { gain: 0.85, high: 0, mid: 0, low: 0, filter: 18000, pan: 0, level: 0.8 };
+    return { gain: 0, high: 0, mid: 0, low: 0, filter: 0, pan: 0, level: 0.8, mute: false, solo: false };
+  }
+
+  function gainAmp(amount) {
+    const x = clamp(amount, -1, 1, 0);
+    if (x >= 0) return 10 ** x;
+    return 1 + x;
+  }
+
+  function cleanGain(raw) {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return 0;
+    if (n === 0.85) return 0;
+    return clamp(n, -1, 1, 0);
+  }
+
+  function filterFreqs(amount) {
+    const x = clamp(amount, -1, 1, 0);
+    if (x <= 0) {
+      return { lpf: LPF_OPEN * Math.pow(LPF_MIN / LPF_OPEN, -x), hpf: HPF_OPEN };
+    }
+    return { lpf: LPF_OPEN, hpf: HPF_OPEN * Math.pow(HPF_MAX / HPF_OPEN, x) };
+  }
+
+  function cleanFilter(raw) {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return 0;
+    if (n > 1) {
+      const hz = Math.min(LPF_OPEN, Math.max(LPF_MIN, n));
+      if (hz >= LPF_OPEN - 1) return 0;
+      return -(Math.log(hz / LPF_OPEN) / Math.log(LPF_MIN / LPF_OPEN));
+    }
+    return clamp(n, -1, 1, 0);
+  }
+
+  function knobAngle(value, min, max) {
+    return (value / Math.max(Math.abs(min), Math.abs(max))) * 135;
+  }
+
+  function paintKnob(input) {
+    const knob = input.closest('.knob');
+    if (!knob) return;
+    const spec = MIX_PARAMS.find(row => row[0] === input.dataset.param);
+    if (!spec) return;
+    knob.style.setProperty('--ang', knobAngle(Number(input.value), spec[2], spec[3]) + 'deg');
+  }
+
+  function mixTip(param, n) {
+    if (param === 'high' || param === 'mid' || param === 'low') {
+      return (n > 0 ? '+' : '') + Number(n).toFixed(1) + ' dB';
+    }
+    if (param === 'gain') {
+      if (n <= -1) return 'off';
+      if (n >= 0) return (n === 0 ? '0' : '+' + Math.round(n * 20)) + ' dB';
+      return Math.round((1 + n) * 100) + '%';
+    }
+    if (param === 'filter') {
+      if (!n) return 'off';
+      const f = filterFreqs(n);
+      return Math.round(n < 0 ? f.lpf : f.hpf) + ' Hz';
+    }
+    if (param === 'pan') return !n ? 'C' : (n < 0 ? Math.round(-n * 100) + ' L' : Math.round(n * 100) + ' R');
+    if (param === 'level') return Math.round(n * 100) + '%';
+    return String(n);
+  }
+
+  let mixTipTimer = 0;
+  function showMixTip(input) {
+    const param = input.dataset.param;
+    const n = Number(input.value);
+    const text = mixTip(param, n);
+    input.setAttribute('aria-valuetext', text);
+    let tip = document.querySelector('.mix-tip');
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.className = 'mix-tip';
+      tip.setAttribute('aria-hidden', 'true');
+      document.querySelector('.mpc').append(tip);
+    }
+    tip.textContent = text;
+    const knob = input.closest('.knob');
+    const box = (knob || input.closest('.strip-fader-row')).getBoundingClientRect();
+    tip.style.left = Math.round(box.right) + 'px';
+    if (knob) {
+      tip.style.top = Math.round(box.top + box.height / 2) + 'px';
+    } else {
+      const min = Number(input.min);
+      const max = Number(input.max);
+      const t = (n - min) / (max - min || 1);
+      tip.style.top = Math.round(box.bottom - t * box.height) + 'px';
+    }
+    tip.hidden = false;
+    window.clearTimeout(mixTipTimer);
+    mixTipTimer = window.setTimeout(() => { tip.hidden = true; }, 800);
   }
 
   function cleanMix(raw) {
     const mix = defaultMix();
     if (!raw) return mix;
-    mix.gain = clamp(raw.gain, 0, 1, mix.gain);
+    mix.gain = cleanGain(raw.gain);
     mix.high = clamp(raw.high, -12, 12, mix.high);
     mix.mid = clamp(raw.mid, -12, 12, mix.mid);
     mix.low = clamp(raw.low, -12, 12, mix.low);
-    mix.filter = clamp(raw.filter, 200, 18000, mix.filter);
+    mix.filter = cleanFilter(raw.filter);
     mix.pan = clamp(raw.pan, -1, 1, mix.pan);
     mix.level = clamp(raw.level, 0, 1, mix.level);
+    mix.mute = !!raw.mute;
+    mix.solo = !!raw.solo;
     return mix;
+  }
+
+  function anyChannelSolo(mixMap) {
+    return Object.keys(mixMap).some(id => id !== 'master' && mixMap[id] && mixMap[id].solo);
+  }
+
+  function stripAudible(id, mixMap) {
+    const mix = mixMap[id];
+    if (!mix || mix.mute) return false;
+    if (id === 'master') return true;
+    return !anyChannelSolo(mixMap) || !!mix.solo;
   }
 
   function noteAt(notes, step, pitch) {
@@ -158,6 +268,23 @@
     MIX_PARAMS.forEach(([param]) => {
       if (!(param in mix)) throw new Error('MPC MIX_PARAMS missing defaultMix key ' + param);
     });
+    const off = filterFreqs(0);
+    if (off.lpf !== LPF_OPEN || off.hpf !== HPF_OPEN) throw new Error('MPC filter off expected open LPF/HPF');
+    if (filterFreqs(-1).lpf !== LPF_MIN || filterFreqs(1).hpf !== HPF_MAX) {
+      throw new Error('MPC filter extremes expected 200 Hz LPF and 18 kHz HPF');
+    }
+    if (cleanFilter(18000) !== 0 || cleanFilter(200) !== -1) throw new Error('MPC filter Hz migration failed');
+    if (gainAmp(0) !== 1 || gainAmp(1) !== 10 || gainAmp(-1) !== 0) throw new Error('MPC gainAmp expected unity / +20dB / off');
+    if (cleanGain(0.85) !== 0) throw new Error('MPC old gain default should become noon');
+    if (mixTip('gain', 0) !== '0 dB' || mixTip('filter', 0) !== 'off' || mixTip('level', 0.8) !== '80%') {
+      throw new Error('MPC mix tip text mismatch');
+    }
+    const def = defaultMix();
+    if (def.mute || def.solo) throw new Error('MPC mute/solo should default off');
+    const soloMap = { kick: { mute: false, solo: true }, snare: { mute: false, solo: false }, master: { mute: false, solo: false } };
+    if (!stripAudible('kick', soloMap) || stripAudible('snare', soloMap) || !stripAudible('master', soloMap)) {
+      throw new Error('MPC solo should silence other channels, not master');
+    }
   }
 
   const state = loadState();
@@ -172,6 +299,8 @@
   const strips = new Map();
   const due = [];
   let hats = [];
+  let meterRaf = 0;
+  const meterSamples = new Float32Array(256);
 
   function save() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (err) { /* quota: pattern still plays */ }
@@ -212,19 +341,27 @@
     const low = ctx.createBiquadFilter();
     low.type = 'lowshelf';
     low.frequency.value = 180;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.Q.value = 0.7;
+    const lpf = ctx.createBiquadFilter();
+    lpf.type = 'lowpass';
+    lpf.Q.value = 0.7;
+    const hpf = ctx.createBiquadFilter();
+    hpf.type = 'highpass';
+    hpf.Q.value = 0.7;
     const pan = ctx.createStereoPanner();
     const level = ctx.createGain();
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.5;
     input.connect(high);
     high.connect(mid);
     mid.connect(low);
-    low.connect(filter);
-    filter.connect(pan);
+    low.connect(lpf);
+    lpf.connect(hpf);
+    hpf.connect(pan);
     pan.connect(level);
     level.connect(destination);
-    strips.set(id, { input, high, mid, low, filter, pan, level });
+    level.connect(analyser);
+    strips.set(id, { input, high, mid, low, lpf, hpf, pan, level, analyser });
     applyMix(id);
     return input;
   }
@@ -232,6 +369,7 @@
   function destroyStrip(id) {
     const strip = strips.get(id);
     if (!strip) return;
+    strip.analyser.disconnect();
     strip.level.disconnect();
     strips.delete(id);
   }
@@ -241,13 +379,19 @@
     const mix = state.mix[id];
     if (!strip || !mix || !ctx) return;
     const t = ctx.currentTime;
-    strip.input.gain.setTargetAtTime(mix.gain, t, 0.01);
+    const freqs = filterFreqs(mix.filter);
+    strip.input.gain.setTargetAtTime(gainAmp(mix.gain), t, 0.01);
     strip.high.gain.setTargetAtTime(mix.high, t, 0.01);
     strip.mid.gain.setTargetAtTime(mix.mid, t, 0.01);
     strip.low.gain.setTargetAtTime(mix.low, t, 0.01);
-    strip.filter.frequency.setTargetAtTime(mix.filter, t, 0.01);
+    strip.lpf.frequency.setTargetAtTime(freqs.lpf, t, 0.01);
+    strip.hpf.frequency.setTargetAtTime(freqs.hpf, t, 0.01);
     strip.pan.pan.setTargetAtTime(mix.pan, t, 0.01);
-    strip.level.gain.setTargetAtTime(mix.level, t, 0.01);
+    strip.level.gain.setTargetAtTime(stripAudible(id, state.mix) ? mix.level : 0, t, 0.01);
+  }
+
+  function applyAllMix() {
+    Object.keys(state.mix).forEach(applyMix);
   }
 
   function decayAmp(peak, decay, when) {
@@ -711,10 +855,46 @@
     paintPlayhead();
   }
 
+  function stopMeters() {
+    window.cancelAnimationFrame(meterRaf);
+    meterRaf = 0;
+  }
+
+  function tickMeters() {
+    meterRaf = window.requestAnimationFrame(tickMeters);
+    document.querySelectorAll('canvas[data-meter]').forEach(canvas => {
+      const row = canvas.closest('.strip-fader-row');
+      if (!row) return;
+      const cw = Math.max(1, Math.round(canvas.clientWidth));
+      const ch = Math.max(1, Math.round(row.clientHeight - 6));
+      if (canvas.width !== cw) canvas.width = cw;
+      if (canvas.height !== ch) canvas.height = ch;
+      const fader = row.querySelector('input');
+      if (fader) fader.style.width = row.clientHeight + 'px';
+      const draw = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      draw.fillStyle = '#161411';
+      draw.fillRect(0, 0, w, h);
+      const strip = strips.get(canvas.dataset.meter);
+      if (!strip || !strip.analyser) return;
+      strip.analyser.getFloatTimeDomainData(meterSamples);
+      let square = 0;
+      for (let i = 0; i < meterSamples.length; i += 1) square += meterSamples[i] * meterSamples[i];
+      const mag = Math.min(1, Math.sqrt(square / meterSamples.length) * 3.2);
+      draw.fillStyle = mag > 0.85 ? '#e39a4a' : '#9dcc7a';
+      const bar = Math.round(h * mag);
+      draw.fillRect(0, h - bar, w, bar);
+    });
+  }
+
   function renderMixer() {
+    stopMeters();
     const root = document.getElementById('view-mixer');
     const row = document.createElement('div');
     row.className = 'mixer-row';
+    const channels = document.createElement('div');
+    channels.className = 'mixer-channels';
     const addStrip = (id, name, color, ink, master) => {
       if (!state.mix[id]) state.mix[id] = defaultMix();
       const strip = document.createElement('section');
@@ -740,18 +920,54 @@
         input.dataset.strip = id;
         input.dataset.param = param;
         input.setAttribute('aria-label', name + ' ' + label);
-        lab.append(span, input);
+        if (param === 'level') {
+          const ms = document.createElement('div');
+          ms.className = 'strip-ms';
+          ms.append(
+            button('', {
+              'data-mute': id,
+              'aria-pressed': state.mix[id].mute ? 'true' : 'false',
+              'aria-label': name + ' mute'
+            }, 'M'),
+            button('', {
+              'data-solo': id,
+              'aria-pressed': state.mix[id].solo ? 'true' : 'false',
+              'aria-label': name + ' solo'
+            }, 'S')
+          );
+          strip.append(ms);
+          const rowInner = document.createElement('div');
+          rowInner.className = 'strip-fader-row';
+          const meter = document.createElement('canvas');
+          meter.className = 'strip-meter';
+          meter.width = 12;
+          meter.height = 104;
+          meter.dataset.meter = id;
+          meter.setAttribute('aria-hidden', 'true');
+          rowInner.append(meter, input);
+          lab.append(span, rowInner);
+        } else {
+          const knob = document.createElement('span');
+          knob.className = 'knob';
+          knob.append(input);
+          lab.append(span, knob);
+          paintKnob(input);
+        }
         strip.append(lab);
       });
-      row.append(strip);
+      return strip;
     };
-    PADS.forEach(pad => addStrip(pad.id, pad.name, pad.color, pad.ink, false));
-    state.tracks.forEach(track => addStrip(track.id, track.name, trackColor(track.type), '#1c140c', false));
-    addStrip('master', 'Master', '#f4efe6', '#1c1a17', true);
+    PADS.forEach(pad => channels.append(addStrip(pad.id, pad.name, pad.color, pad.ink, false)));
+    state.tracks.forEach(track => channels.append(addStrip(track.id, track.name, trackColor(track.type), '#1c140c', false)));
+    row.append(channels, addStrip('master', 'Master', '#f4efe6', '#1c1a17', true));
     root.replaceChildren(row);
+    tickMeters();
   }
 
   function showView(name) {
+    stopMeters();
+    const tip = document.querySelector('.mix-tip');
+    if (tip) tip.hidden = true;
     document.querySelectorAll('[data-view]').forEach(tab => {
       const on = tab.dataset.view === name;
       tab.classList.toggle('is-selected', on);
@@ -949,25 +1165,49 @@
       paintRoll(track);
     });
 
+    document.getElementById('view-mixer').addEventListener('click', event => {
+      const mute = event.target.closest('[data-mute]');
+      const solo = event.target.closest('[data-solo]');
+      if (!mute && !solo) return;
+      const id = (mute || solo).dataset.mute || (mute || solo).dataset.solo;
+      const mix = state.mix[id];
+      if (!mix) return;
+      if (mute) mix.mute = !mix.mute;
+      else mix.solo = !mix.solo;
+      save();
+      applyAllMix();
+      const on = mute ? mix.mute : mix.solo;
+      (mute || solo).setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
     document.getElementById('view-mixer').addEventListener('input', event => {
       const input = event.target;
       if (!input.dataset || !input.dataset.strip) return;
       const id = input.dataset.strip;
       state.mix[id][input.dataset.param] = Number(input.value);
+      paintKnob(input);
+      showMixTip(input);
       applyMix(id);
       save();
     });
-    document.getElementById('view-mixer').addEventListener('dblclick', event => {
-      const input = event.target;
-      if (!input.dataset || !input.dataset.strip || !input.dataset.param) return;
-      const id = input.dataset.strip;
-      const param = input.dataset.param;
-      const value = defaultMix()[param];
-      if (value === undefined) return;
-      state.mix[id][param] = value;
-      input.value = String(value);
-      applyMix(id);
-      save();
+    let mixDbl = { t: 0, el: null };
+    document.getElementById('view-mixer').addEventListener('pointerdown', event => {
+      const input = event.target.closest('label')?.querySelector('input[data-strip][data-param]');
+      if (!input || event.button) return;
+      const now = event.timeStamp;
+      if (mixDbl.el === input && now - mixDbl.t < 500) {
+        event.preventDefault();
+        mixDbl = { t: 0, el: null };
+        const value = defaultMix()[input.dataset.param];
+        if (value === undefined) return;
+        state.mix[input.dataset.strip][input.dataset.param] = value;
+        input.value = String(value);
+        paintKnob(input);
+        showMixTip(input);
+        applyMix(input.dataset.strip);
+        save();
+        return;
+      }
+      mixDbl = { t: now, el: input };
     });
   }
 
