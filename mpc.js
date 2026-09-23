@@ -1208,6 +1208,31 @@
         return;
       }
       mixDbl = { t: now, el: input };
+      const knob = event.target.closest('.knob');
+      if (!knob) return;
+      event.preventDefault();
+      const spec = MIX_PARAMS.find(row => row[0] === input.dataset.param);
+      if (!spec) return;
+      const min = spec[2];
+      const max = spec[3];
+      const step = spec[4];
+      const startY = event.clientY;
+      const startVal = Number(input.value);
+      const onMove = ev => {
+        const next = startVal + ((ev.clientY - startY) / 120) * (max - min);
+        const snapped = Math.round(next / step) * step;
+        input.value = String(clamp(snapped, min, max, startVal));
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      const onUp = () => {
+        knob.removeEventListener('pointermove', onMove);
+        knob.removeEventListener('pointerup', onUp);
+        knob.removeEventListener('pointercancel', onUp);
+      };
+      knob.addEventListener('pointermove', onMove);
+      knob.addEventListener('pointerup', onUp);
+      knob.addEventListener('pointercancel', onUp);
+      try { knob.setPointerCapture(event.pointerId); } catch (err) { /* no hardware pointer */ }
     });
   }
 
