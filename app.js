@@ -190,7 +190,8 @@
     button.setAttribute('aria-pressed', String(recording.active || recording.countingDown));
     button.classList.toggle('is-recording', recording.active || recording.countingDown);
     button.classList.toggle('is-counting-down', recording.countingDown);
-    icon.textContent = recording.active ? '●' : '○';
+    icon.classList.toggle('fa-solid', recording.active);
+    icon.classList.toggle('fa-regular', !recording.active);
     label.textContent = recording.countingDown ? 'Get ready...' : (recording.active ? 'Stop recording' : 'Record');
   }
 

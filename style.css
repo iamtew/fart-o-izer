@@ -286,7 +286,6 @@ h2 {
   transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
 }
 .icon-button:hover { border-color: var(--green-deep); color: var(--green-light); background: var(--panel-light); }
-.icon-cross { display: inline-block; transform: rotate(45deg); font-size: 1.35rem; line-height: 1; }
 
 /* Slider cards — one knob per setting, all equally incriminating */
 .control-grid { display: grid; gap: 0.85rem; max-width: 42rem; margin: 0 auto; }
