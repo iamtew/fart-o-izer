@@ -2,6 +2,8 @@
 
 This file guides **Clankers** (AI agents and automated editors) working on code the **Meat Bags** (human operators) maintain. Meat Bags read it too. Clankers must follow it when changing this repository.
 
+Never start test HTTP server. Meat Bag operates local test instance on localhost:8000 that Clanker and Meat Bag shares.
+
 User-facing documentation lives in [README.md](README.md).
 
 ---
