@@ -154,6 +154,10 @@
     if (noteAt(notes, 2, 60) || noteAt(notes, 4, 60)) throw new Error('MPC note erase failed');
     notes = placeNote(notes, 0, 60, 1);
     if (!noteAt(notes, 0, 60) || noteAt(notes, 1, 60)) throw new Error('MPC note on/off failed');
+    const mix = defaultMix();
+    MIX_PARAMS.forEach(([param]) => {
+      if (!(param in mix)) throw new Error('MPC MIX_PARAMS missing defaultMix key ' + param);
+    });
   }
 
   const state = loadState();
@@ -567,6 +571,29 @@
     button.textContent = 'Play';
   }
 
+  function resetAll() {
+    stopTransport();
+    const keep = { master: true };
+    PADS.forEach(pad => { keep[pad.id] = true; });
+    strips.forEach((_, id) => {
+      if (!keep[id]) destroyStrip(id);
+    });
+    const next = freshState();
+    state.kit = next.kit;
+    state.bpm = next.bpm;
+    state.drums = next.drums;
+    state.tracks = next.tracks;
+    state.mix = next.mix;
+    state.nextId = next.nextId;
+    state.selectedTrack = next.selectedTrack;
+    Object.keys(keep).forEach(applyMix);
+    document.getElementById('bpm').value = String(state.bpm);
+    syncKit();
+    save();
+    const tab = document.querySelector('[data-view].is-selected');
+    showView(tab ? tab.dataset.view : 'drums');
+  }
+
   function button(className, attrs, text) {
     const node = document.createElement('button');
     node.type = 'button';
@@ -792,6 +819,12 @@
       if (playing) stopTransport();
       else startTransport();
     });
+    document.getElementById('reset-button').addEventListener('click', resetAll);
+    bpm.addEventListener('dblclick', () => {
+      state.bpm = 140;
+      bpm.value = '140';
+      save();
+    });
     bpm.addEventListener('input', () => {
       const value = Number(bpm.value);
       if (value >= 40 && value <= 240) {
@@ -921,6 +954,18 @@
       if (!input.dataset || !input.dataset.strip) return;
       const id = input.dataset.strip;
       state.mix[id][input.dataset.param] = Number(input.value);
+      applyMix(id);
+      save();
+    });
+    document.getElementById('view-mixer').addEventListener('dblclick', event => {
+      const input = event.target;
+      if (!input.dataset || !input.dataset.strip || !input.dataset.param) return;
+      const id = input.dataset.strip;
+      const param = input.dataset.param;
+      const value = defaultMix()[param];
+      if (value === undefined) return;
+      state.mix[id][param] = value;
+      input.value = String(value);
       applyMix(id);
       save();
     });

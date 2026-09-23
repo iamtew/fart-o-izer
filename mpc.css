@@ -42,6 +42,7 @@ body {
 }
 
 .play-button,
+.reset-button,
 .kit-switch button,
 .view-switch button,
 .text-button,
@@ -54,7 +55,8 @@ body {
   cursor: pointer;
 }
 
-.play-button {
+.play-button,
+.reset-button {
   min-height: 2.4rem;
   padding: 0.35rem 1.1rem;
   border: 1px solid var(--brown-light);
@@ -274,7 +276,7 @@ body {
 }
 
 .pad:focus-visible, .step:focus-visible, .cell:focus-visible, .key:focus-visible,
-.play-button:focus-visible, .text-button:focus-visible, .chip:focus-visible,
+.play-button:focus-visible, .reset-button:focus-visible, .text-button:focus-visible, .chip:focus-visible,
 .kit-switch button:focus-visible, .view-switch button:focus-visible, .mpc-home:focus-visible {
   outline: 3px solid var(--brown-light);
   outline-offset: 2px;
