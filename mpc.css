@@ -205,7 +205,7 @@ body {
 }
 .note-name.is-black { color: var(--brown-light); }
 .cell { height: 1.15rem; background: #221f1b; }
-.cell.is-black { background: #161411; }
+.cell.is-black:not(.is-on) { background: #161411; }
 .empty-note { margin: 0; color: var(--muted); }
 
 .keys { display: flex; gap: 0.3rem; }
