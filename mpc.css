@@ -1,0 +1,288 @@
+/*
+ * Multi Poop Composer. Full-bleed layout on top of the lab tokens in style.css.
+ * The lab shell stays narrow; this page uses the viewport.
+ */
+
+body {
+  background: #141210;
+  overflow: hidden;
+}
+
+.mpc {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: none;
+  margin: 0;
+  padding: 0.75rem 1rem 1rem;
+  gap: 0.75rem;
+}
+
+.mpc-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+}
+
+.mpc h1 { font-size: clamp(1.7rem, 3vw, 2.5rem); }
+
+.mpc-home {
+  color: inherit;
+  text-decoration: none;
+}
+.mpc-home:hover { color: var(--ink); }
+
+.transport {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.play-button,
+.kit-switch button,
+.view-switch button,
+.text-button,
+.chip,
+.pad,
+.step,
+.key,
+.cell {
+  font: inherit;
+  cursor: pointer;
+}
+
+.play-button {
+  min-height: 2.4rem;
+  padding: 0.35rem 1.1rem;
+  border: 1px solid var(--brown-light);
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--brown-deep);
+}
+.play-button[aria-pressed="true"] {
+  color: #1c140c;
+  background: var(--brown-light);
+}
+
+.bpm-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+}
+.bpm-label input {
+  width: 4.2rem;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  color: var(--ink);
+  background: var(--panel);
+}
+
+.kit-switch,
+.view-switch {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
+.kit-switch button,
+.view-switch button,
+.text-button,
+.chip {
+  min-height: 2.1rem;
+  padding: 0.3rem 0.85rem;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+}
+.kit-switch button.is-selected,
+.view-switch button.is-selected,
+.chip.is-selected {
+  color: var(--ink);
+  background: var(--panel-light);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.text-button {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+}
+.text-button:disabled { opacity: 0.4; cursor: default; }
+
+.mpc-view:not([hidden]) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  gap: 0.75rem;
+}
+
+.drums {
+  display: grid;
+  grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr);
+  gap: 0.85rem;
+  min-height: 0;
+}
+
+.pad-rack {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  align-content: start;
+}
+.pad {
+  min-height: 4.6rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: var(--pad);
+  color: var(--on-ink);
+}
+.pad:hover, .step:hover, .cell:hover, .key:hover { filter: brightness(1.1); }
+
+.step-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow-x: auto;
+}
+.step-row {
+  display: grid;
+  grid-template-columns: 5.6rem repeat(16, minmax(1.05rem, 1fr));
+  gap: 0.2rem;
+  align-items: center;
+}
+.step-label {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.step, .cell {
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.2rem;
+  background: var(--panel-light);
+}
+.step { aspect-ratio: 1; }
+.step.is-on, .cell.is-on { background: var(--pad); border-color: transparent; }
+.step.is-beat, .cell.is-beat { box-shadow: inset 2px 0 0 rgba(244, 239, 230, 0.2); }
+.step.is-playhead, .cell.is-playhead { outline: 2px solid var(--ink); outline-offset: -2px; }
+
+.piano-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+.track-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.chip { box-shadow: inset 0 0 0 2px var(--pad); }
+
+.roll-wrap { flex: 0 1 auto; min-height: 0; max-height: 100%; overflow: auto; }
+.roll {
+  display: grid;
+  grid-template-columns: 3.2rem repeat(16, minmax(1.35rem, 1fr));
+  gap: 2px;
+  min-width: 36rem;
+  touch-action: none;
+  user-select: none;
+}
+.note-name {
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+.note-name.is-black { color: var(--brown-light); }
+.cell { height: 1.15rem; background: #221f1b; }
+.cell.is-black { background: #161411; }
+.empty-note { margin: 0; color: var(--muted); }
+
+.keys { display: flex; gap: 0.3rem; }
+.key {
+  flex: 1;
+  min-height: 3.1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  color: var(--ink);
+  background: var(--panel-light);
+}
+.key.is-black { color: var(--muted); background: #2a261f; }
+
+.mixer-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+  min-height: 0;
+  padding-bottom: 0.25rem;
+}
+.strip {
+  display: flex;
+  flex: 0 0 7.4rem;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 7.4rem;
+  padding: 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  background: var(--panel);
+}
+.strip.is-master { border-color: var(--brown-light); }
+.strip-name {
+  margin: 0;
+  padding: 0.35rem 0.25rem;
+  border-radius: 0.3rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  text-align: center;
+  text-transform: uppercase;
+}
+.strip-param, .strip-fader {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  color: var(--muted);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.strip-param input { width: 100%; }
+.strip-fader {
+  position: relative;
+  flex: 1;
+  min-height: 7.5rem;
+}
+.strip-fader span { text-align: center; }
+.strip-fader input {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: 6.4rem;
+  margin: 0;
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+.pad:focus-visible, .step:focus-visible, .cell:focus-visible, .key:focus-visible,
+.play-button:focus-visible, .text-button:focus-visible, .chip:focus-visible,
+.kit-switch button:focus-visible, .view-switch button:focus-visible, .mpc-home:focus-visible {
+  outline: 3px solid var(--brown-light);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  body { overflow: auto; }
+  .mpc { height: auto; min-height: 100dvh; }
+  .drums { grid-template-columns: 1fr; }
+  .mpc-view:not([hidden]) { overflow: visible; }
+}

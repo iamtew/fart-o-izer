@@ -4,12 +4,15 @@
 
 A fully client-side atmospheric sound lab built with HTML, CSS, and the Web Audio API. No samples, build step, or npm dependencies. The app is a shared lab shell that hosts self-contained instruments. Use the **Fart** | **Queef** picker below the masthead to switch instruments — only one is active at a time.
 
-Fonts are loaded from a CDN for branding; all audio synthesis and UI logic run in the browser with no backend.
+Fonts are loaded from a CDN for branding; all audio synthesis and UI logic run in the browser with no backend. The Multi Poop Composer is a separate page: a looping drum machine plus chromatic Fart and Queef tracks.
 
 ## Project structure
 
 ```text
 index.html                          Lab shell (masthead, instrument picker, actions, recording)
+mpc.html                            Multi Poop Composer — drums, piano roll, mixer
+mpc.css                             Composer layout
+mpc.js                              Pattern, scheduler, synthesized kits and note voices
 style.css                           Shared layout, tokens, panel chrome, recording UI
 app.js                              Lab controller — recording, panels, instrument switching
 pcm_capture_worklet.js              Shared WAV capture worklet (repo root)
@@ -36,6 +39,10 @@ The original low rumble. Sawtooth body, filtered noise, Cheek Clapz stutter, and
 ### Queef
 
 A brighter, more melodic voice — higher pitch, bandpass resonance, vibrato and phrase drift, Flutter Gate, and Pitch Glide. Includes a **Waveform** picker (Sine, Triangle, Saw, Square) in Controls. QueenQueef on the launch button. Share settings via `QueefID` (and `instrument=queef`) in the URL.
+
+## Multi Poop Composer
+
+Open [mpc.html](mpc.html), or the **MPC** link on the lab masthead. One bar loops as 16 sixteenths. The drum machine is synthesized, not sampled: an **808** kit and a **909** kit, eight pads each (kick, snare, clap, closed hat, open hat, low/mid/high tom). **Add Fart** and **Add Queef** create tracks you paint on the piano roll; several of each can play at once. Every drum pad and every added track gets a mixer strip (gain, high, mid, low, filter, pan, level), plus a master strip. The pattern stays in this browser via `localStorage`. Sample upload is not part of this page.
 
 ## Audio architecture
 

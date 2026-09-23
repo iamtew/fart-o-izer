@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#141210">
+  <meta name="description" content="Multi Poop Composer — synthesized drums, fart and queef piano roll, mixer">
+  <title>MPC — Multi Poop Composer</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="mpc.css">
+  <script src="mpc.js" defer></script>
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="manifest" href="/site.webmanifest">
+</head>
+<body>
+  <main class="mpc">
+    <header class="mpc-bar">
+      <div class="mpc-brand">
+        <p class="eyebrow"><a class="mpc-home" href="index.html">Fart-O-Izer</a> · sequencer</p>
+        <h1>Multi Poop <span>Composer</span></h1>
+      </div>
+      <div class="transport" aria-label="Transport">
+        <button class="play-button" id="play-button" type="button" aria-pressed="false">Play</button>
+        <label class="bpm-label">BPM
+          <input id="bpm" type="number" min="40" max="240" step="1" value="140" inputmode="numeric">
+        </label>
+        <div class="kit-switch" role="group" aria-label="Drum kit">
+          <button type="button" data-kit="808" aria-pressed="true">808</button>
+          <button type="button" data-kit="909" aria-pressed="false">909</button>
+        </div>
+        <div class="view-switch" role="tablist" aria-label="Composer view">
+          <button type="button" role="tab" data-view="drums" aria-selected="true">Drums</button>
+          <button type="button" role="tab" data-view="piano" aria-selected="false">Piano</button>
+          <button type="button" role="tab" data-view="mixer" aria-selected="false">Mixer</button>
+        </div>
+      </div>
+    </header>
+    <section class="mpc-view" id="view-drums" data-view-panel="drums" aria-label="Drum machine"></section>
+    <section class="mpc-view" id="view-piano" data-view-panel="piano" aria-label="Piano roll" hidden></section>
+    <section class="mpc-view" id="view-mixer" data-view-panel="mixer" aria-label="Mixer" hidden></section>
+  </main>
+</body>
+</html>
