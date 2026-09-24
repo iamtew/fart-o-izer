@@ -1915,13 +1915,13 @@
     const len = document.createElement('span');
     len.className = 'bar-len';
     len.textContent = pattern.bars + (pattern.bars === 1 ? ' bar' : ' bars');
-    const grow = iconButton('icon-button', { 'data-pattern-grow': '1', 'aria-label': 'Double length', title: 'Double length' }, 'fa-expand');
+    const grow = iconButton('icon-button', { 'data-pattern-grow': '1', 'aria-label': 'Double length', title: 'Double length' }, 'fa-plus');
     grow.disabled = pattern.bars >= 8;
-    const half = iconButton('icon-button', { 'data-pattern-half': '1', 'aria-label': 'Halve length', title: 'Halve length' }, 'fa-compress');
+    const half = iconButton('icon-button', { 'data-pattern-half': '1', 'aria-label': 'Halve length', title: 'Halve length' }, 'fa-minus');
     half.disabled = pattern.bars <= 1;
     const main = document.createElement('div');
     main.className = 'bar-meter-main';
-    main.append(prev, slots, next, len, grow, half);
+    main.append(prev, slots, next, len, half, grow);
     const clear = iconButton('icon-button', { 'data-clear-pattern': '1', 'aria-label': 'Clear pattern', title: 'Clear pattern' }, 'fa-eraser');
     wrap.append(main, clear);
     return wrap;

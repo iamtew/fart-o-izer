@@ -19,12 +19,19 @@ body {
 }
 
 .mpc-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.75rem 1.25rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "brand transport"
+    "tools tools";
+  align-items: end;
+  column-gap: 1.25rem;
+  row-gap: 0.5rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--line);
 }
+
+.mpc-brand { grid-area: brand; }
 
 .mpc h1 { font-size: clamp(1.7rem, 3vw, 2.5rem); }
 
@@ -35,19 +42,21 @@ body {
 .mpc-home:hover { color: var(--ink); }
 
 .song-tools {
+  grid-area: tools;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.4rem 0.5rem;
-  flex: 1 1 14rem;
-  min-width: 12rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
 }
 
 .song-name-label {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  flex: 1 1 10rem;
+  flex: 0 1 auto;
   color: var(--muted);
   font-size: 0.85rem;
   letter-spacing: 0.08em;
@@ -101,10 +110,19 @@ body {
 }
 
 .transport {
+  grid-area: transport;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-self: end;
   gap: 0.5rem;
+  padding-left: 1rem;
+  border-left: 1px solid var(--line);
+}
+.transport > :not(:first-child):not(.play-button):not(.rec-button) {
+  margin-left: 0.15rem;
+  padding-left: 0.6rem;
+  border-left: 1px solid var(--line);
 }
 
 .play-button,
