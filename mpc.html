@@ -23,6 +23,33 @@
         <p class="eyebrow"><a class="mpc-home" href="index.html">Fart-O-Izer</a> · sequencer</p>
         <h1>Multi Poop <span>Composer</span></h1>
       </div>
+      <div class="song-tools">
+        <label class="song-name-label">Song
+          <input id="song-name" type="text" maxlength="40" placeholder="Song name" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="song-name-label">Library
+          <select id="song-library" aria-label="Saved songs">
+            <option value="">Saved songs</option>
+          </select>
+        </label>
+        <button class="reset-button" id="save-song" type="button" aria-label="Save song" title="Save to this browser">
+          <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+        </button>
+        <button class="reset-button" id="delete-song" type="button" aria-label="Delete saved song" title="Remove from library">
+          <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+        </button>
+        <button class="reset-button" id="import-song" type="button" aria-label="Import song" title="Import JSON song file">
+          <i class="fa-solid fa-file-import" aria-hidden="true"></i>
+        </button>
+        <input id="import-song-file" type="file" accept=".json,.txt,application/json,text/plain" hidden>
+        <button class="reset-button" id="export-json" type="button" aria-label="Export JSON" title="Export song as JSON">
+          <i class="fa-solid fa-file-export" aria-hidden="true"></i>
+        </button>
+        <button class="reset-button" id="export-song" type="button" aria-label="Export WAV" title="Export song as WAV">
+          <i class="fa-solid fa-download" aria-hidden="true"></i>
+        </button>
+        <span class="song-status" id="song-status" aria-live="polite"></span>
+      </div>
       <div class="transport" aria-label="Transport">
         <button class="play-button" id="play-button" type="button" aria-pressed="false" aria-label="Play">
           <i class="fa-solid fa-play" aria-hidden="true"></i>

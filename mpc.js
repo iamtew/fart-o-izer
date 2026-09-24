@@ -19,6 +19,13 @@
   const MAJOR = [0, 2, 4, 5, 7, 9, 11];
   const MINOR = [0, 2, 3, 5, 7, 8, 10];
   const STORAGE_KEY = 'fart-o-izer-mpc';
+  const LIBRARY_KEY = 'fart-o-izer-mpc-songs';
+  const SONG_ID = 'SongID';
+  const SONG_VERSION = 1;
+  const SONG_NAME_MAX = 40;
+  const EXPORT_MAX_S = 600;
+  const POOP_LEFT = ['Wet', 'Ripe', 'Silent', 'Cheeky', 'Gaseous', 'Funky', 'Leaky', 'Thunderous', 'Sneaky', 'Pungent'];
+  const POOP_RIGHT = ['Honk', 'Toot', 'Symphony', 'Clapz', 'Rumble', 'Squirt', 'Fugue', 'Trumpet', 'Poot', 'Overture'];
   const LOOKAHEAD_MS = 25;
   const HORIZON = 0.1;
   const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -378,15 +385,56 @@
       kit: '808', bpm: 140, tracks: [], mix, nextId: 1, selectedTrack: null,
       grid: 16, root: 0, mode: 'chromatic', ticks: TICKS,
       patterns: [pattern], patternId: 'p1', nextPattern: 2,
-      arrangement: [], loopStart: 0, loopEnd: 0, playSong: false, pxPerBar: 48, seqShare: 0.33
+      arrangement: [], loopStart: 0, loopEnd: 0, playSong: false, pxPerBar: 48, seqShare: 0.33,
+      songName: ''
     };
   }
 
-  function loadState() {
-    const state = freshState();
+  function cleanSongName(raw) {
+    return String(raw || '').replace(/\s+/g, ' ').trim().slice(0, SONG_NAME_MAX);
+  }
+
+  function poopSongName() {
+    const left = POOP_LEFT[Math.floor(Math.random() * POOP_LEFT.length)];
+    const right = POOP_RIGHT[Math.floor(Math.random() * POOP_RIGHT.length)];
+    return left + ' ' + right;
+  }
+
+  function encodePayload(payload) {
+    const bytes = new TextEncoder().encode(JSON.stringify(payload));
+    let binary = '';
+    bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function decodePayload(encoded) {
     try {
-      const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-      if (!raw || typeof raw !== 'object') return state;
+      const normalized = String(encoded).replace(/-/g, '+').replace(/_/g, '/');
+      const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+      const binary = atob(padded);
+      const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+      const payload = JSON.parse(new TextDecoder().decode(bytes));
+      if (!payload || payload.v !== SONG_VERSION) return null;
+      return payload;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function parseSongText(text) {
+    const trimmed = String(text || '').trim();
+    if (!trimmed) return null;
+    try {
+      const payload = JSON.parse(trimmed);
+      if (payload && typeof payload === 'object' && !Array.isArray(payload)) return payload;
+    } catch (err) { /* old SongID blob */ }
+    return decodePayload(trimmed);
+  }
+
+  function hydrateFromRaw(raw) {
+    const state = freshState();
+    if (!raw || typeof raw !== 'object') return state;
+    try {
       if (raw.kit === '909') state.kit = '909';
       state.bpm = clamp(raw.bpm, 40, 240, state.bpm);
       state.grid = raw.grid === 32 ? 32 : 16;
@@ -451,10 +499,28 @@
       state.selectedTrack = state.tracks.some(track => track.id === raw.selectedTrack)
         ? raw.selectedTrack
         : (state.tracks[0] ? state.tracks[0].id : null);
+      state.songName = cleanSongName(raw.songName);
     } catch (err) {
       return freshState();
     }
     return state;
+  }
+
+  function loadState() {
+    try {
+      const encoded = new URLSearchParams(window.location.search).get(SONG_ID);
+      if (encoded) {
+        const decoded = decodePayload(encoded);
+        if (decoded) {
+          const next = hydrateFromRaw(decoded);
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch (err) { /* quota: song still plays */ }
+          return next;
+        }
+      }
+      return hydrateFromRaw(JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'));
+    } catch (err) {
+      return freshState();
+    }
   }
 
   function selfCheck() {
@@ -541,6 +607,22 @@
     if (heldNoteLength(0, 0, 1, 2) !== 2) throw new Error('MPC held key tap should last one 16th');
     if (heldNoteLength(0, 4, 1, 2) !== 4) throw new Error('MPC held key should stretch to the release tick');
     if (heldNoteLength(30, 0, 1, 2) !== 2) throw new Error('MPC held key should cap at the pattern end');
+    const named = poopSongName();
+    if (!named || named === cleanSongName('') || named.indexOf(' ') < 0) {
+      throw new Error('MPC poop song names should be two words');
+    }
+    const json = '{"v":1,"songName":"Wet Honk","bpm":120,"kit":"909"}';
+    const parsed = parseSongText(json);
+    if (!parsed || parsed.songName !== 'Wet Honk' || parsed.bpm !== 120) {
+      throw new Error('MPC song JSON parse failed');
+    }
+    if (parseSongText('not-a-song')) throw new Error('MPC song JSON should reject junk');
+    if (hydrateFromRaw({ v: SONG_VERSION, songName: '  Thunderous Poot  ', bpm: 99 }).songName !== 'Thunderous Poot') {
+      throw new Error('MPC should keep song names from JSON');
+    }
+    const encoded = encodePayload({ v: SONG_VERSION, songName: 'Silent Toot', bpm: 90, kit: '808' });
+    const fromId = parseSongText(encoded);
+    if (!fromId || fromId.songName !== 'Silent Toot') throw new Error('MPC should still read old SongID text');
   }
 
   const state = loadState();
@@ -564,6 +646,260 @@
 
   function save() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (err) { /* quota: pattern still plays */ }
+  }
+
+  function setSongStatus(message) {
+    const node = document.getElementById('song-status');
+    if (node) node.textContent = message || '';
+  }
+
+  function syncSongNameInput() {
+    const input = document.getElementById('song-name');
+    if (input) input.value = state.songName;
+  }
+
+  function songPayload() {
+    return {
+      v: SONG_VERSION,
+      songName: state.songName,
+      kit: state.kit,
+      bpm: state.bpm,
+      grid: state.grid,
+      root: state.root,
+      mode: state.mode,
+      tracks: state.tracks,
+      mix: state.mix,
+      patterns: state.patterns,
+      arrangement: state.arrangement,
+      loopStart: state.loopStart,
+      loopEnd: state.loopEnd,
+      nextId: state.nextId,
+      nextPattern: state.nextPattern,
+      patternId: state.patternId
+    };
+  }
+
+  function ensureSongName() {
+    const name = cleanSongName(state.songName);
+    if (name) {
+      if (name !== state.songName) {
+        state.songName = name;
+        syncSongNameInput();
+        save();
+      }
+      return name;
+    }
+    state.songName = poopSongName();
+    syncSongNameInput();
+    save();
+    return state.songName;
+  }
+
+  function wavFilename(name, ext) {
+    const safe = name.replace(/[^\w\- ]+/g, '_').trim() || 'song';
+    if (ext) return safe + ext;
+    return safe + '-' + state.bpm + '-' + NOTE_NAMES[state.root] + '-' + state.mode + '.wav';
+  }
+
+  function loadLibrary() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LIBRARY_KEY) || '[]');
+      if (!Array.isArray(raw)) return [];
+      return raw.filter(item => item && typeof item.name === 'string' && item.song && typeof item.song === 'object');
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function writeLibrary(list) {
+    try { localStorage.setItem(LIBRARY_KEY, JSON.stringify(list)); } catch (err) { /* quota: working song still plays */ }
+  }
+
+  function upsertLibrary(payload) {
+    const name = cleanSongName(payload && payload.songName);
+    if (!name) return;
+    const list = loadLibrary().filter(item => item.name !== name);
+    list.push({ name, song: payload });
+    list.sort((a, b) => a.name.localeCompare(b.name));
+    writeLibrary(list);
+  }
+
+  function syncLibrarySelect() {
+    const select = document.getElementById('song-library');
+    if (!select) return;
+    const current = cleanSongName(state.songName);
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = 'Saved songs';
+    const nodes = [blank];
+    loadLibrary().forEach(item => {
+      const option = document.createElement('option');
+      option.value = item.name;
+      option.textContent = item.name;
+      if (item.name === current) option.selected = true;
+      nodes.push(option);
+    });
+    select.replaceChildren(...nodes);
+  }
+
+  function saveToLibrary() {
+    const name = ensureSongName();
+    upsertLibrary(songPayload());
+    syncLibrarySelect();
+    setSongStatus('Saved ' + name + ' in this browser.');
+  }
+
+  function loadFromLibrary(name) {
+    const item = loadLibrary().find(entry => entry.name === name);
+    if (!item) return;
+    adoptState(hydrateFromRaw(item.song));
+    setSongStatus('Loaded ' + state.songName + '.');
+  }
+
+  function deleteFromLibrary() {
+    const name = cleanSongName(state.songName);
+    if (!name) {
+      setSongStatus('Name a saved song to remove it.');
+      return;
+    }
+    const list = loadLibrary();
+    if (!list.some(item => item.name === name)) {
+      setSongStatus(name + ' is not in the library.');
+      return;
+    }
+    writeLibrary(list.filter(item => item.name !== name));
+    syncLibrarySelect();
+    setSongStatus('Removed ' + name + ' from the library.');
+  }
+
+  function exportSongJson() {
+    const name = ensureSongName();
+    const blob = new Blob([JSON.stringify(songPayload(), null, 2)], { type: 'application/json' });
+    downloadBlob(blob, wavFilename(name, '.json'));
+    setSongStatus('Exported ' + wavFilename(name, '.json') + '.');
+  }
+
+  function importSongFile(file) {
+    if (!file) return;
+    file.text().then(text => {
+      const payload = parseSongText(text);
+      if (!payload) {
+        setSongStatus('That song file was not recognized.');
+        return;
+      }
+      adoptState(hydrateFromRaw(payload));
+      ensureSongName();
+      upsertLibrary(songPayload());
+      syncLibrarySelect();
+      setSongStatus('Imported ' + state.songName + '.');
+    }).catch(() => {
+      setSongStatus('That song file could not be read.');
+    });
+  }
+
+  function writeString(view, offset, value) {
+    for (let index = 0; index < value.length; index += 1) view.setUint8(offset + index, value.charCodeAt(index));
+  }
+
+  function encodeWav(audioBuffer) {
+    const channels = audioBuffer.numberOfChannels;
+    const sampleRate = audioBuffer.sampleRate;
+    const length = audioBuffer.length;
+    const bytesPerSample = 2;
+    const blockAlign = channels * bytesPerSample;
+    const dataSize = length * blockAlign;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, channels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, dataSize, true);
+    const lanes = [];
+    for (let channel = 0; channel < channels; channel += 1) lanes.push(audioBuffer.getChannelData(channel));
+    let offset = 44;
+    for (let index = 0; index < length; index += 1) {
+      for (let channel = 0; channel < channels; channel += 1) {
+        const sample = Math.max(-1, Math.min(1, lanes[channel][index]));
+        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+        offset += 2;
+      }
+    }
+    return new Blob([buffer], { type: 'audio/wav' });
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  async function exportSong() {
+    const name = ensureSongName();
+    const button = document.getElementById('export-song');
+    if (button) button.disabled = true;
+    setSongStatus('Rendering WAV…');
+    const savedPlay = state.playSong;
+    let liveCtx = ctx;
+    let liveHats = hats;
+    let saved = new Map(strips);
+    try {
+      await ensureAudio();
+      liveCtx = ctx;
+      liveHats = hats;
+      saved = new Map(strips);
+      const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!Offline) throw new Error('WAV export is not supported in this browser.');
+      const song = state.arrangement.length > 0;
+      let bars = currentPattern().bars;
+      if (song) {
+        bars = 0;
+        state.arrangement.forEach(clip => {
+          bars = Math.max(bars, clip.startBar + clipBars(clip, state.patterns));
+        });
+        bars = Math.max(bars, 1);
+      }
+      const tail = 1;
+      let seconds = bars * 4 * (60 / state.bpm) + tail;
+      // ponytail: 10 min cap; chunked/offline stream if songs grow past this
+      if (seconds > EXPORT_MAX_S) seconds = EXPORT_MAX_S;
+      const sampleRate = ctx.sampleRate;
+      const frames = Math.max(1, Math.ceil(seconds * sampleRate));
+      const offline = new Offline(2, frames, sampleRate);
+      strips.clear();
+      hats = [];
+      ctx = offline;
+      const masterIn = createStrip('master', ctx.destination);
+      PADS.forEach(pad => createStrip(pad.id, masterIn));
+      state.tracks.forEach(track => createStrip(track.id, masterIn));
+      state.playSong = song;
+      const tickDur = tickSeconds(state.bpm);
+      const endTick = Math.min(bars * TICKS, Math.max(1, Math.floor((seconds - tail) / tickDur)));
+      for (let tick = 0; tick < endTick; tick += 1) scheduleTick(tick, tick * tickDur);
+      const rendered = await offline.startRendering();
+      downloadBlob(encodeWav(rendered), wavFilename(name));
+      setSongStatus('Exported ' + wavFilename(name) + '.');
+    } catch (err) {
+      setSongStatus(err.message || 'The song could not be exported.');
+    } finally {
+      state.playSong = savedPlay;
+      ctx = liveCtx;
+      strips.clear();
+      saved.forEach((strip, id) => strips.set(id, strip));
+      hats = liveHats;
+      if (button) button.disabled = false;
+    }
   }
 
   function selectedTrack() {
@@ -1226,40 +1562,41 @@
     save();
   }
 
-  function resetAll() {
+  function adoptState(next) {
     stopTransport();
     const keep = { master: true };
     PADS.forEach(pad => { keep[pad.id] = true; });
+    (next.tracks || []).forEach(track => { keep[track.id] = true; });
     strips.forEach((_, id) => {
       if (!keep[id]) destroyStrip(id);
     });
-    const next = freshState();
-    state.kit = next.kit;
-    state.bpm = next.bpm;
-    state.tracks = next.tracks;
-    state.mix = next.mix;
-    state.nextId = next.nextId;
-    state.selectedTrack = next.selectedTrack;
-    state.grid = next.grid;
-    state.root = next.root;
-    state.mode = next.mode;
-    state.ticks = next.ticks;
-    state.patterns = next.patterns;
-    state.patternId = next.patternId;
-    state.nextPattern = next.nextPattern;
-    state.arrangement = next.arrangement;
-    state.loopStart = next.loopStart;
-    state.loopEnd = next.loopEnd;
-    state.playSong = next.playSong;
-    state.pxPerBar = next.pxPerBar;
-    state.seqShare = next.seqShare;
-    Object.keys(keep).forEach(applyMix);
-    document.getElementById('bpm').value = String(state.bpm);
+    Object.keys(next).forEach(key => { state[key] = next[key]; });
+    if (ctx) {
+      const master = strips.get('master');
+      if (master) {
+        PADS.forEach(pad => {
+          if (!strips.has(pad.id)) createStrip(pad.id, master.input);
+        });
+        state.tracks.forEach(track => {
+          if (!strips.has(track.id)) createStrip(track.id, master.input);
+        });
+      }
+      applyAllMix();
+    }
+    const bpm = document.getElementById('bpm');
+    if (bpm) bpm.value = String(state.bpm);
+    syncSongNameInput();
     syncKit();
     applySeqShare();
     save();
     const tab = document.querySelector('[data-view].is-selected');
     showView(tab ? tab.dataset.view : 'drums');
+    syncLibrarySelect();
+  }
+
+  function resetAll() {
+    adoptState(freshState());
+    setSongStatus('');
   }
 
   function button(className, attrs, text) {
@@ -1876,8 +2213,34 @@
     syncKit();
     applySeqShare();
     setRecUi();
+    syncSongNameInput();
+    syncLibrarySelect();
     showView('drums');
+    const encoded = new URLSearchParams(window.location.search).get(SONG_ID);
+    if (encoded) {
+      if (decodePayload(encoded)) setSongStatus('SongID URLs are retired. Export JSON instead.');
+      else setSongStatus('That SongID was not recognized.');
+    }
 
+    document.getElementById('song-name').addEventListener('input', event => {
+      state.songName = String(event.target.value).slice(0, SONG_NAME_MAX);
+      save();
+    });
+    document.getElementById('song-library').addEventListener('change', event => {
+      if (event.target.value) loadFromLibrary(event.target.value);
+    });
+    document.getElementById('save-song').addEventListener('click', saveToLibrary);
+    document.getElementById('delete-song').addEventListener('click', deleteFromLibrary);
+    document.getElementById('import-song').addEventListener('click', () => {
+      document.getElementById('import-song-file').click();
+    });
+    document.getElementById('import-song-file').addEventListener('change', event => {
+      const file = event.target.files && event.target.files[0];
+      event.target.value = '';
+      importSongFile(file);
+    });
+    document.getElementById('export-json').addEventListener('click', exportSongJson);
+    document.getElementById('export-song').addEventListener('click', exportSong);
     document.getElementById('play-button').addEventListener('click', () => {
       if (playing) stopTransport();
       else startTransport();
