@@ -236,6 +236,28 @@
     return validNote(next, ticksMax) ? next : null;
   }
 
+  function snapTick(tick, bars, span) {
+    const max = bars * TICKS;
+    const step = span || 2;
+    if (max < 1) return 0;
+    const n = Math.round(Math.max(0, tick) / step) * step;
+    return ((n % max) + max) % max;
+  }
+
+  function drumStepFromTick(tick, bars) {
+    return snapTick(tick, bars, 2) >> 1;
+  }
+
+  function heldNoteLength(startTick, playTick, bars, span) {
+    const max = bars * TICKS;
+    const step = span || 2;
+    if (startTick >= max) return step;
+    const end = snapTick(playTick, bars, step);
+    if (end < startTick) return max - startTick;
+    if (end === startTick) return step;
+    return Math.min(end - startTick, max - startTick);
+  }
+
   function emptyDrums(bars) {
     const drums = {};
     PADS.forEach(pad => { drums[pad.id] = Array(bars * STEPS).fill(false); });
@@ -512,12 +534,21 @@
     const wrap = nextSongTick(6 * TICKS - 1, arrangement, patterns, 2, 6);
     if (wrap !== 2 * TICKS) throw new Error('MPC song wrap should return to loop start');
     if (songHit(0, arrangement, patterns)) throw new Error('MPC song gap should be silence');
+    if (drumStepFromTick(0, 1) !== 0) throw new Error('MPC live record tick 0 should land on step 0');
+    if (drumStepFromTick(1, 1) !== 1) throw new Error('MPC live record should round odd 32nds to the next 16th');
+    if (drumStepFromTick(31, 1) !== 0) throw new Error('MPC live record last tick should wrap');
+    if (snapTick(1, 1, 1) !== 1 || snapTick(31, 1, 1) !== 31) throw new Error('MPC live record 32nd snap should keep ticks');
+    if (heldNoteLength(0, 0, 1, 2) !== 2) throw new Error('MPC held key tap should last one 16th');
+    if (heldNoteLength(0, 4, 1, 2) !== 4) throw new Error('MPC held key should stretch to the release tick');
+    if (heldNoteLength(30, 0, 1, 2) !== 2) throw new Error('MPC held key should cap at the pattern end');
   }
 
   const state = loadState();
   let ctx = null;
   let noiseBuffer = null;
   let playing = false;
+  let recording = false;
+  const padPointers = new Map();
   let timer = 0;
   let nextTime = 0;
   let stepIndex = 0;
@@ -579,6 +610,11 @@
     node.replaceChildren(iconEl(playing ? 'fa-stop' : 'fa-play'));
     node.setAttribute('aria-pressed', playing ? 'true' : 'false');
     node.setAttribute('aria-label', playing ? 'Stop' : 'Play');
+  }
+
+  function setRecUi() {
+    const node = document.getElementById('rec-button');
+    node.setAttribute('aria-pressed', recording ? 'true' : 'false');
   }
 
   function syncPlayMode() {
@@ -895,6 +931,7 @@
     osc.stop(stop);
     noise.stop(stop);
     lfo.stop(stop);
+    return { amp, sources: [osc, noise, lfo] };
   }
 
   function triggerQueef(when, dur, freq, dest) {
@@ -932,13 +969,27 @@
     body.stop(stop);
     shimmer.stop(stop);
     vib.stop(stop);
+    return { amp, sources: [body, shimmer, vib] };
   }
 
   function triggerMelodic(type, midi, when, dur, dest) {
-    if (!dest) return;
+    if (!dest) return null;
     const freq = 440 * 2 ** ((midi - 69) / 12);
-    if (type === 'queef') triggerQueef(when, dur, freq, dest);
-    else triggerFart(when, dur, freq, dest);
+    if (type === 'queef') return triggerQueef(when, dur, freq, dest);
+    return triggerFart(when, dur, freq, dest);
+  }
+
+  function releaseVoice(voice) {
+    if (!voice || !ctx) return;
+    const t = ctx.currentTime;
+    try {
+      voice.amp.gain.cancelScheduledValues(t);
+      voice.amp.gain.setValueAtTime(Math.max(0.0001, voice.amp.gain.value), t);
+      voice.amp.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+    } catch (err) { /* voice already finished */ }
+    voice.sources.forEach(source => {
+      try { source.stop(t + 0.1); } catch (err) { /* already stopped */ }
+    });
   }
 
   function audition(midi) {
@@ -987,6 +1038,7 @@
       if (!dest) return;
       (notesMap[track.id] || []).forEach(note => {
         if (note.step !== localTick) return;
+        if (heldLiveNote(track.id, note)) return;
         triggerMelodic(track.type, note.pitch, when, note.length * durTick, dest.input);
       });
     });
@@ -1046,6 +1098,7 @@
     if (due.length > 64) due.splice(0, due.length - 32);
     if (head !== playhead) {
       playhead = head;
+      stretchHeldKeys();
       paintPlayhead();
     }
   }
@@ -1066,11 +1119,111 @@
 
   function stopTransport() {
     playing = false;
+    recording = false;
     window.clearInterval(timer);
     due.length = 0;
     playhead = -1;
     paintPlayhead();
     setPlayUi();
+    setRecUi();
+  }
+
+  function armRecord() {
+    if (state.playSong) {
+      state.playSong = false;
+      syncPlayMode();
+      save();
+      if (playing) stopTransport();
+    }
+    recording = true;
+    setRecUi();
+    if (!playing) startTransport();
+  }
+
+  function paintDrumStep(id, step, on) {
+    document.querySelectorAll('#view-drums [data-pad="' + id + '"][data-step="' + (step * 2) + '"]').forEach(cell => {
+      cell.classList.toggle('is-on', on);
+      cell.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  function recordPad(id) {
+    if (!recording || !playing) return;
+    const pattern = currentPattern();
+    const row = pattern.drums[id];
+    if (!row) return;
+    const step = drumStepFromTick(playhead < 0 ? 0 : playhead, pattern.bars);
+    row[step] = true;
+    paintDrumStep(id, step, true);
+    save();
+  }
+
+  function hitPad(id) {
+    ensureAudio().then(() => triggerPad(id, ctx.currentTime + 0.01));
+    recordPad(id);
+  }
+
+  function heldLiveNote(trackId, note) {
+    for (const hold of padPointers.values()) {
+      if (hold.kind === 'key' && hold.recording && hold.trackId === trackId && hold.midi === note.pitch && hold.start === note.step) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function writeHeldNote(hold, length) {
+    const track = state.tracks.find(item => item.id === hold.trackId);
+    if (!track) return;
+    hold.length = length;
+    currentPattern().notes[track.id] = placeNote(trackNotes(track), hold.start, hold.midi, length, patternTicks());
+    paintRoll(track);
+  }
+
+  function stretchHeldKeys() {
+    if (!recording || !playing) return;
+    const span = gridSpan();
+    const bars = currentPattern().bars;
+    const tick = playhead < 0 ? 0 : playhead;
+    padPointers.forEach(hold => {
+      if (hold.kind !== 'key' || !hold.recording) return;
+      const length = heldNoteLength(hold.start, tick, bars, span);
+      if (length === hold.length) return;
+      writeHeldNote(hold, length);
+    });
+  }
+
+  function beginKeyHold(id, el, midi) {
+    if (padPointers.has(id)) return;
+    const track = selectedTrack();
+    const span = gridSpan();
+    const writing = !!(recording && playing && track);
+    const start = writing ? snapTick(playhead < 0 ? 0 : playhead, currentPattern().bars, span) : 0;
+    const hold = { kind: 'key', el, midi, start, trackId: track && track.id, voice: null, length: span, recording: writing };
+    padPointers.set(id, hold);
+    el.classList.add('is-down');
+    if (writing) writeHeldNote(hold, span);
+    if (!track) return;
+    ensureAudio().then(() => {
+      const live = padPointers.get(id);
+      if (!live || live.kind !== 'key') return;
+      const strip = strips.get(track.id);
+      // ponytail: 60s hold ceiling; releaseVoice cuts it short
+      live.voice = triggerMelodic(track.type, midi, ctx.currentTime, 60, strip && strip.input);
+    });
+  }
+
+  function endLivePointer(id) {
+    const hold = padPointers.get(id);
+    padPointers.delete(id);
+    if (!hold) return;
+    if (hold.el) hold.el.classList.remove('is-down');
+    if (hold.kind !== 'key') return;
+    releaseVoice(hold.voice);
+    if (!hold.recording) return;
+    const span = gridSpan();
+    writeHeldNote(hold, heldNoteLength(hold.start, playhead < 0 ? hold.start : playhead, currentPattern().bars, span));
+    save();
   }
 
   function resetAll() {
@@ -1722,11 +1875,20 @@
     bpm.value = String(state.bpm);
     syncKit();
     applySeqShare();
+    setRecUi();
     showView('drums');
 
     document.getElementById('play-button').addEventListener('click', () => {
       if (playing) stopTransport();
       else startTransport();
+    });
+    document.getElementById('rec-button').addEventListener('click', () => {
+      if (recording) {
+        recording = false;
+        setRecUi();
+        return;
+      }
+      armRecord();
     });
     document.getElementById('reset-button').addEventListener('click', resetAll);
     bpm.addEventListener('dblclick', () => {
@@ -1923,12 +2085,23 @@
     timeline.addEventListener('pointercancel', endTl);
 
     const drumsView = document.getElementById('view-drums');
+    drumsView.addEventListener('pointerdown', event => {
+      const pad = event.target.closest('[data-audition]');
+      if (!pad || event.button) return;
+      event.preventDefault();
+      if (padPointers.has(event.pointerId)) return;
+      padPointers.set(event.pointerId, { kind: 'pad', el: pad });
+      pad.classList.add('is-down');
+      hitPad(pad.dataset.audition);
+    });
+    drumsView.addEventListener('pointerup', event => endLivePointer(event.pointerId));
+    drumsView.addEventListener('pointercancel', event => endLivePointer(event.pointerId));
     drumsView.addEventListener('click', event => {
       if (handleBarMeter(event)) return;
       const audition = event.target.closest('[data-audition]');
       if (audition) {
-        const id = audition.dataset.audition;
-        ensureAudio().then(() => triggerPad(id, ctx.currentTime + 0.01));
+        if (event.detail) return;
+        hitPad(audition.dataset.audition);
         return;
       }
       const cell = event.target.closest('[data-pad]');
@@ -1945,6 +2118,8 @@
     const pianoView = document.getElementById('view-piano');
     pianoView.addEventListener('click', event => {
       if (handleBarMeter(event)) return;
+      const liveKey = event.target.closest('[data-key]');
+      if (liveKey) return;
       const add = event.target.closest('[data-add]');
       if (add) { addTrack(add.dataset.add); return; }
       const select = event.target.closest('[data-select]');
@@ -1974,7 +2149,10 @@
     pianoView.addEventListener('pointerdown', event => {
       const key = event.target.closest('[data-key]');
       if (key) {
-        audition(Number(key.dataset.key));
+        if (event.button) return;
+        event.preventDefault();
+        beginKeyHold(event.pointerId, key, Number(key.dataset.key));
+        try { key.setPointerCapture(event.pointerId); } catch (err) { /* no hardware pointer */ }
         return;
       }
       const cell = event.target.closest('.cell');
@@ -2025,10 +2203,23 @@
       drag = null;
       save();
     };
-    pianoView.addEventListener('pointerup', endDrag);
-    pianoView.addEventListener('pointercancel', endDrag);
+    pianoView.addEventListener('pointerup', event => {
+      endLivePointer(event.pointerId);
+      endDrag(event);
+    });
+    pianoView.addEventListener('pointercancel', event => {
+      endLivePointer(event.pointerId);
+      endDrag(event);
+    });
     pianoView.addEventListener('keydown', event => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
+      const key = event.target.closest('[data-key]');
+      if (key) {
+        if (event.repeat) return;
+        event.preventDefault();
+        beginKeyHold('kbd-' + key.dataset.key, key, Number(key.dataset.key));
+        return;
+      }
       const cell = event.target.closest('.cell');
       if (!cell) return;
       event.preventDefault();
@@ -2045,6 +2236,13 @@
       }
       save();
       paintRoll(track);
+    });
+    pianoView.addEventListener('keyup', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const key = event.target.closest('[data-key]');
+      if (!key) return;
+      event.preventDefault();
+      endLivePointer('kbd-' + key.dataset.key);
     });
 
     document.getElementById('view-mixer').addEventListener('click', event => {
