@@ -1,19 +1,19 @@
 /*
  * Multi Poop Composer.
  *
- * A one-bar loop on its own page: synthesized 808/909 drums (16 sixteenths),
- * Fart and Queef piano roll (16 or 32 ticks), and a mixer strip per pad and
- * per track. The lab's hold-to-play
+ * Patterns (1/2/4/8 bars of 4/4) on their own page: synthesized 808/909 drums,
+ * Fart and Queef piano roll, mixer, and a song timeline. The lab's hold-to-play
  * factories stay put — they are monophonic and start at "now", so this file
  * schedules its own voices.
  *
- * Pattern, kit, BPM, and mix levels live in localStorage under fart-o-izer-mpc.
+ * Patterns, kit, BPM, mix, and arrangement live in localStorage under fart-o-izer-mpc.
  */
 (() => {
   'use strict';
 
   const STEPS = 16;
   const TICKS = 32;
+  const PAGE_BARS = 4;
   const NOTE_LO = 48;
   const NOTE_HI = 71;
   const MAJOR = [0, 2, 4, 5, 7, 9, 11];
@@ -203,8 +203,9 @@
     return notes.find(note => note.pitch === pitch && note.step < step + width && step < note.step + note.length) || null;
   }
 
-  function placeNote(notes, step, pitch, length) {
-    const len = Math.max(1, Math.min(length, TICKS - step));
+  function placeNote(notes, step, pitch, length, ticksMax) {
+    const cap = ticksMax || TICKS;
+    const len = Math.max(1, Math.min(length, cap - step));
     const end = step + len;
     const next = notes.filter(note => note.pitch !== pitch || note.step + note.length <= step || note.step >= end);
     next.push({ step, pitch, length: len });
@@ -217,33 +218,145 @@
     return notes.filter(note => note !== hit);
   }
 
-  function validNote(note) {
+  function validNote(note, ticksMax) {
+    const cap = ticksMax || TICKS;
     return !!note
-      && Number.isInteger(note.step) && note.step >= 0 && note.step < TICKS
-      && Number.isInteger(note.length) && note.length >= 1 && note.step + note.length <= TICKS
+      && Number.isInteger(note.step) && note.step >= 0 && note.step < cap
+      && Number.isInteger(note.length) && note.length >= 1 && note.step + note.length <= cap
       && Number.isInteger(note.pitch) && note.pitch >= NOTE_LO && note.pitch <= NOTE_HI;
   }
 
-  function asTickNote(note, from16) {
+  function asTickNote(note, from16, ticksMax) {
     if (!note) return null;
     const next = {
       step: from16 ? note.step * 2 : note.step,
       length: from16 ? note.length * 2 : note.length,
       pitch: note.pitch
     };
-    return validNote(next) ? next : null;
+    return validNote(next, ticksMax) ? next : null;
+  }
+
+  function emptyDrums(bars) {
+    const drums = {};
+    PADS.forEach(pad => { drums[pad.id] = Array(bars * STEPS).fill(false); });
+    return drums;
+  }
+
+  function nextPatternName(patterns) {
+    if (!patterns.length) return 'PATTERN';
+    let max = 0;
+    let hasBare = false;
+    patterns.forEach(pattern => {
+      if (pattern.name === 'PATTERN') hasBare = true;
+      const match = /^PATTERN (\d+)$/.exec(pattern.name);
+      if (match) max = Math.max(max, Number(match[1]));
+    });
+    if (!hasBare) return 'PATTERN';
+    return 'PATTERN ' + (max + 1);
+  }
+
+  function clipBars(clip, patterns) {
+    const pattern = patterns.find(item => item.id === clip.patternId);
+    return pattern ? pattern.bars * Math.max(1, clip.repeats | 0) : 0;
+  }
+
+  function songLengthBars(arrangement, patterns, loopEnd) {
+    let end = 4;
+    arrangement.forEach(clip => { end = Math.max(end, clip.startBar + clipBars(clip, patterns)); });
+    if (loopEnd) end = Math.max(end, loopEnd);
+    return Math.max(end, 1);
+  }
+
+  function songHit(songTick, arrangement, patterns) {
+    const bar = Math.floor(songTick / TICKS);
+    const localInBar = ((songTick % TICKS) + TICKS) % TICKS;
+    for (let i = 0; i < arrangement.length; i += 1) {
+      const clip = arrangement[i];
+      const span = clipBars(clip, patterns);
+      if (bar < clip.startBar || bar >= clip.startBar + span) continue;
+      const pattern = patterns.find(item => item.id === clip.patternId);
+      if (!pattern) return null;
+      const localBar = (bar - clip.startBar) % pattern.bars;
+      return { pattern, localTick: localBar * TICKS + localInBar, clip };
+    }
+    return null;
+  }
+
+  function nextSongTick(tick, arrangement, patterns, loopStart, loopEnd) {
+    const endBar = loopEnd || songLengthBars(arrangement, patterns, loopEnd);
+    const startBar = Math.max(0, Math.min(loopStart, endBar - 1));
+    const startTick = startBar * TICKS;
+    const endTick = Math.max(startBar + 1, endBar) * TICKS;
+    const next = tick + 1;
+    return next >= endTick ? startTick : next;
+  }
+
+  function rangesOverlap(a0, a1, b0, b1) {
+    return a0 < b1 && b0 < a1;
+  }
+
+  function clipFits(arrangement, ignore, startBar, bars, patterns) {
+    if (startBar < 0 || bars < 1) return false;
+    return arrangement.every((clip, i) => {
+      if (i === ignore) return true;
+      return !rangesOverlap(startBar, startBar + bars, clip.startBar, clip.startBar + clipBars(clip, patterns));
+    });
+  }
+
+  function resizePattern(pattern, bars) {
+    if (![1, 2, 4, 8].includes(bars) || bars === pattern.bars) return pattern;
+    const ticksMax = bars * TICKS;
+    const steps = bars * STEPS;
+    const next = { id: pattern.id, name: pattern.name, bars, drums: emptyDrums(bars), notes: {} };
+    PADS.forEach(pad => {
+      const row = pattern.drums[pad.id] || [];
+      for (let i = 0; i < Math.min(row.length, steps); i += 1) next.drums[pad.id][i] = !!row[i];
+    });
+    Object.keys(pattern.notes).forEach(id => {
+      next.notes[id] = (pattern.notes[id] || []).map(note => {
+        if (note.step >= ticksMax) return null;
+        const length = Math.min(note.length, ticksMax - note.step);
+        return length >= 1 ? { step: note.step, pitch: note.pitch, length } : null;
+      }).filter(Boolean);
+    });
+    return next;
+  }
+
+  function loadPattern(raw, from16, trackIds) {
+    const bars = raw && [1, 2, 4, 8].includes(raw.bars) ? raw.bars : 1;
+    const ticksMax = bars * TICKS;
+    const drums = emptyDrums(bars);
+    PADS.forEach(pad => {
+      const row = raw && raw.drums && raw.drums[pad.id];
+      if (Array.isArray(row) && row.length === bars * STEPS) drums[pad.id] = row.map(Boolean);
+    });
+    const notes = {};
+    trackIds.forEach(id => { notes[id] = []; });
+    if (raw && raw.notes && typeof raw.notes === 'object') {
+      Object.keys(raw.notes).forEach(id => {
+        notes[id] = Array.isArray(raw.notes[id])
+          ? raw.notes[id].map(note => asTickNote(note, from16, ticksMax)).filter(Boolean)
+          : [];
+      });
+    }
+    return {
+      id: String(raw && raw.id ? raw.id : 'p1'),
+      name: String(raw && raw.name ? raw.name : 'PATTERN').slice(0, 16),
+      bars,
+      drums,
+      notes
+    };
   }
 
   function freshState() {
     const mix = { master: defaultMix() };
-    const drums = {};
-    PADS.forEach(pad => {
-      drums[pad.id] = Array(STEPS).fill(false);
-      mix[pad.id] = defaultMix();
-    });
+    PADS.forEach(pad => { mix[pad.id] = defaultMix(); });
+    const pattern = { id: 'p1', name: 'PATTERN', bars: 1, drums: emptyDrums(1), notes: {} };
     return {
-      kit: '808', bpm: 140, drums, tracks: [], mix, nextId: 1, selectedTrack: null,
-      grid: 16, root: 0, mode: 'chromatic', ticks: TICKS
+      kit: '808', bpm: 140, tracks: [], mix, nextId: 1, selectedTrack: null,
+      grid: 16, root: 0, mode: 'chromatic', ticks: TICKS,
+      patterns: [pattern], patternId: 'p1', nextPattern: 2,
+      arrangement: [], loopStart: 0, loopEnd: 0, playSong: false, pxPerBar: 48, seqShare: 0.33
     };
   }
 
@@ -259,8 +372,6 @@
       state.mode = raw.mode === 'major' || raw.mode === 'minor' ? raw.mode : 'chromatic';
       const from16 = raw.ticks !== TICKS;
       PADS.forEach(pad => {
-        const row = raw.drums && raw.drums[pad.id];
-        if (Array.isArray(row) && row.length === STEPS) state.drums[pad.id] = row.map(Boolean);
         state.mix[pad.id] = cleanMix(raw.mix && raw.mix[pad.id]);
       });
       state.mix.master = cleanMix(raw.mix && raw.mix.master);
@@ -270,12 +381,50 @@
           state.tracks.push({
             id: track.id,
             type: track.type,
-            name: String(track.name || track.type).slice(0, 32),
-            notes: Array.isArray(track.notes) ? track.notes.map(note => asTickNote(note, from16)).filter(Boolean) : []
+            name: String(track.name || track.type).slice(0, 32)
           });
           state.mix[track.id] = cleanMix(raw.mix && raw.mix[track.id]);
         });
       }
+      const trackIds = state.tracks.map(track => track.id);
+      if (Array.isArray(raw.patterns) && raw.patterns.length) {
+        state.patterns = raw.patterns.map(item => loadPattern(item, from16, trackIds));
+        state.patternId = state.patterns.some(item => item.id === raw.patternId)
+          ? raw.patternId
+          : state.patterns[0].id;
+        state.nextPattern = Math.max(state.patterns.length + 1, Number(raw.nextPattern) || 1);
+      } else {
+        const drums = emptyDrums(1);
+        PADS.forEach(pad => {
+          const row = raw.drums && raw.drums[pad.id];
+          if (Array.isArray(row) && row.length === STEPS) drums[pad.id] = row.map(Boolean);
+        });
+        const notes = {};
+        trackIds.forEach(id => { notes[id] = []; });
+        raw.tracks && raw.tracks.forEach(track => {
+          if (!track || typeof track.id !== 'string') return;
+          notes[track.id] = Array.isArray(track.notes)
+            ? track.notes.map(note => asTickNote(note, from16, TICKS)).filter(Boolean)
+            : [];
+        });
+        state.patterns = [{ id: 'p1', name: 'PATTERN', bars: 1, drums, notes }];
+        state.patternId = 'p1';
+        state.nextPattern = 2;
+      }
+      if (Array.isArray(raw.arrangement)) {
+        raw.arrangement.forEach(clip => {
+          if (!clip || !state.patterns.some(item => item.id === clip.patternId)) return;
+          const startBar = Math.max(0, clip.startBar | 0);
+          const repeats = Math.max(1, clip.repeats | 0);
+          if (!clipFits(state.arrangement, -1, startBar, clipBars({ patternId: clip.patternId, repeats }, state.patterns), state.patterns)) return;
+          state.arrangement.push({ patternId: clip.patternId, startBar, repeats });
+        });
+      }
+      state.loopStart = Math.max(0, raw.loopStart | 0);
+      state.loopEnd = Math.max(0, raw.loopEnd | 0);
+      state.playSong = !!raw.playSong && state.arrangement.length > 0;
+      state.pxPerBar = clamp(raw.pxPerBar, 16, 160, 48);
+      state.seqShare = clamp(raw.seqShare, 0.18, 0.7, 0.33);
       state.nextId = Math.max(1, Number(raw.nextId) || 1);
       state.selectedTrack = state.tracks.some(track => track.id === raw.selectedTrack)
         ? raw.selectedTrack
@@ -328,6 +477,41 @@
     if (!stripAudible('kick', soloMap) || stripAudible('snare', soloMap) || !stripAudible('master', soloMap)) {
       throw new Error('MPC solo should silence other channels, not master');
     }
+    const wrapped = loadPattern({
+      id: 'p1', name: 'A', bars: 1,
+      drums: { kick: Array(STEPS).fill(false) },
+      notes: { t1: [{ step: 0, length: 2, pitch: 60 }] }
+    }, false, ['t1']);
+    if (wrapped.bars !== 1 || wrapped.notes.t1.length !== 1) throw new Error('MPC pattern wrap failed');
+    if (nextPatternName([]) !== 'PATTERN' || nextPatternName([{ name: 'PATTERN' }]) !== 'PATTERN 1') {
+      throw new Error('MPC pattern names should be PATTERN, PATTERN 1, …');
+    }
+    if (nextPatternName([{ name: 'PATTERN' }, { name: 'PATTERN 2' }]) !== 'PATTERN 3') {
+      throw new Error('MPC pattern name counter should skip used numbers');
+    }
+    const grown = resizePattern(wrapped, 2);
+    if (grown.bars !== 2 || grown.notes.t1.length !== 1 || grown.drums.kick.length !== STEPS * 2) {
+      throw new Error('MPC pattern double should extend with empty bars');
+    }
+    if (grown.drums.kick.slice(STEPS).some(Boolean)) throw new Error('MPC pattern double should not copy hits');
+    const halved = resizePattern(grown, 1);
+    if (halved.bars !== 1 || halved.notes.t1.length !== 1 || halved.drums.kick.length !== STEPS) {
+      throw new Error('MPC pattern half should keep the first bars');
+    }
+    grown.notes.t1.push({ step: TICKS, pitch: 60, length: 2 });
+    if (resizePattern(grown, 1).notes.t1.some(note => note.step >= TICKS)) {
+      throw new Error('MPC pattern half should drop notes past the new length');
+    }
+    const patterns = [
+      { id: 'p1', bars: 1 },
+      { id: 'p2', bars: 2 }
+    ];
+    const arrangement = [{ patternId: 'p2', startBar: 2, repeats: 2 }];
+    const hit = songHit(2 * TICKS, arrangement, patterns);
+    if (!hit || hit.pattern.id !== 'p2' || hit.localTick !== 0) throw new Error('MPC song tick should map into the clip');
+    const wrap = nextSongTick(6 * TICKS - 1, arrangement, patterns, 2, 6);
+    if (wrap !== 2 * TICKS) throw new Error('MPC song wrap should return to loop start');
+    if (songHit(0, arrangement, patterns)) throw new Error('MPC song gap should be silence');
   }
 
   const state = loadState();
@@ -339,6 +523,8 @@
   let stepIndex = 0;
   let playhead = -1;
   let drag = null;
+  let tlDrag = null;
+  let patternPage = 0;
   const strips = new Map();
   const due = [];
   let hats = [];
@@ -351,6 +537,75 @@
 
   function selectedTrack() {
     return state.tracks.find(track => track.id === state.selectedTrack) || null;
+  }
+
+  function currentPattern() {
+    return state.patterns.find(item => item.id === state.patternId) || state.patterns[0];
+  }
+
+  function patternTicks() {
+    return currentPattern().bars * TICKS;
+  }
+
+  function pageCount() {
+    return Math.max(1, Math.ceil(currentPattern().bars / PAGE_BARS));
+  }
+
+  function viewBars() {
+    patternPage = Math.max(0, Math.min(patternPage, pageCount() - 1));
+    const start = patternPage * PAGE_BARS;
+    return { start, count: Math.min(PAGE_BARS, currentPattern().bars - start) };
+  }
+
+  function trackNotes(track) {
+    const pattern = currentPattern();
+    if (!pattern.notes[track.id]) pattern.notes[track.id] = [];
+    return pattern.notes[track.id];
+  }
+
+  function usingSong() {
+    return state.playSong && state.arrangement.length > 0;
+  }
+
+  function iconEl(name) {
+    const node = document.createElement('i');
+    node.className = 'fa-solid ' + name;
+    node.setAttribute('aria-hidden', 'true');
+    return node;
+  }
+
+  function setPlayUi() {
+    const node = document.getElementById('play-button');
+    node.replaceChildren(iconEl(playing ? 'fa-stop' : 'fa-play'));
+    node.setAttribute('aria-pressed', playing ? 'true' : 'false');
+    node.setAttribute('aria-label', playing ? 'Stop' : 'Play');
+  }
+
+  function syncPlayMode() {
+    if (!state.arrangement.length) state.playSong = false;
+    document.querySelectorAll('[data-mode]').forEach(tab => {
+      const song = tab.dataset.mode === 'song';
+      tab.disabled = song && !state.arrangement.length;
+      const on = song ? state.playSong : !state.playSong;
+      tab.classList.toggle('is-selected', on);
+      tab.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  function applySeqShare() {
+    const share = clamp(state.seqShare, 0.18, 0.7, 0.33);
+    const mpc = document.querySelector('.mpc');
+    mpc.style.setProperty('--seq-grow', String(share));
+    mpc.style.setProperty('--edit-grow', String(1 - share));
+    const split = document.getElementById('seq-split');
+    split.setAttribute('aria-valuemin', '18');
+    split.setAttribute('aria-valuemax', '70');
+    split.setAttribute('aria-valuenow', String(Math.round(share * 100)));
+  }
+
+  function patternColor(id) {
+    const index = Math.max(0, state.patterns.findIndex(item => item.id === id));
+    return PADS[index % PADS.length].color;
   }
 
   function trackColor(type) {
@@ -702,11 +957,26 @@
   }
 
   function scheduleTick(tick, when) {
-    if ((tick & 1) === 0) {
-      const step = tick >> 1;
-      const open = state.drums.openhat[step];
+    let drums;
+    let notesMap;
+    let localTick;
+    if (usingSong()) {
+      const hit = songHit(tick, state.arrangement, state.patterns);
+      if (!hit) return;
+      drums = hit.pattern.drums;
+      notesMap = hit.pattern.notes;
+      localTick = hit.localTick;
+    } else {
+      const pattern = currentPattern();
+      drums = pattern.drums;
+      notesMap = pattern.notes;
+      localTick = tick;
+    }
+    if ((localTick & 1) === 0) {
+      const step = localTick >> 1;
+      const open = drums.openhat[step];
       PADS.forEach(pad => {
-        if (!state.drums[pad.id][step]) return;
+        if (!drums[pad.id][step]) return;
         if (pad.id === 'hat' && open) return;
         triggerPad(pad.id, when);
       });
@@ -715,19 +985,44 @@
     state.tracks.forEach(track => {
       const dest = strips.get(track.id);
       if (!dest) return;
-      track.notes.forEach(note => {
-        if (note.step !== tick) return;
+      (notesMap[track.id] || []).forEach(note => {
+        if (note.step !== localTick) return;
         triggerMelodic(track.type, note.pitch, when, note.length * durTick, dest.input);
       });
     });
   }
 
   function paintPlayhead() {
+    let gridHead = playhead;
+    if (usingSong()) {
+      const hit = songHit(playhead, state.arrangement, state.patterns);
+      gridHead = hit && hit.pattern.id === state.patternId ? hit.localTick : -1;
+    }
+    if (playing && gridHead >= 0 && pageCount() > 1) {
+      const want = Math.floor(Math.floor(gridHead / TICKS) / PAGE_BARS);
+      if (want !== patternPage) {
+        patternPage = want;
+        const tab = document.querySelector('[data-view].is-selected');
+        const name = tab ? tab.dataset.view : 'drums';
+        if (name === 'drums') renderDrums();
+        else if (name === 'piano') renderPiano();
+        renderBank();
+        return;
+      }
+    }
     document.querySelectorAll('[data-step]').forEach(cell => {
       const start = Number(cell.dataset.step);
       const span = Number(cell.dataset.span || 1);
-      cell.classList.toggle('is-playhead', playhead >= start && playhead < start + span);
+      cell.classList.toggle('is-playhead', gridHead >= start && gridHead < start + span);
     });
+    const line = document.querySelector('.tl-playhead');
+    if (!line) return;
+    if (!playing || !usingSong() || playhead < 0) {
+      line.hidden = true;
+      return;
+    }
+    line.hidden = false;
+    line.style.left = (playhead / TICKS) * state.pxPerBar + 'px';
   }
 
   function scheduler() {
@@ -737,7 +1032,11 @@
       scheduleTick(stepIndex, nextTime);
       due.push({ step: stepIndex, when: nextTime });
       nextTime += tickSeconds(state.bpm);
-      stepIndex = (stepIndex + 1) % TICKS;
+      if (usingSong()) {
+        stepIndex = nextSongTick(stepIndex, state.arrangement, state.patterns, state.loopStart, state.loopEnd);
+      } else {
+        stepIndex = (stepIndex + 1) % patternTicks();
+      }
     }
     const now = ctx.currentTime + 0.02;
     let head = playhead;
@@ -754,12 +1053,10 @@
   function startTransport() {
     if (playing) return;
     playing = true;
-    const button = document.getElementById('play-button');
-    button.setAttribute('aria-pressed', 'true');
-    button.textContent = 'Stop';
+    setPlayUi();
     ensureAudio().then(() => {
       if (!playing) return;
-      stepIndex = 0;
+      stepIndex = usingSong() ? state.loopStart * TICKS : 0;
       playhead = -1;
       due.length = 0;
       nextTime = ctx.currentTime + 0.06;
@@ -773,9 +1070,7 @@
     due.length = 0;
     playhead = -1;
     paintPlayhead();
-    const button = document.getElementById('play-button');
-    button.setAttribute('aria-pressed', 'false');
-    button.textContent = 'Play';
+    setPlayUi();
   }
 
   function resetAll() {
@@ -788,7 +1083,6 @@
     const next = freshState();
     state.kit = next.kit;
     state.bpm = next.bpm;
-    state.drums = next.drums;
     state.tracks = next.tracks;
     state.mix = next.mix;
     state.nextId = next.nextId;
@@ -797,9 +1091,19 @@
     state.root = next.root;
     state.mode = next.mode;
     state.ticks = next.ticks;
+    state.patterns = next.patterns;
+    state.patternId = next.patternId;
+    state.nextPattern = next.nextPattern;
+    state.arrangement = next.arrangement;
+    state.loopStart = next.loopStart;
+    state.loopEnd = next.loopEnd;
+    state.playSong = next.playSong;
+    state.pxPerBar = next.pxPerBar;
+    state.seqShare = next.seqShare;
     Object.keys(keep).forEach(applyMix);
     document.getElementById('bpm').value = String(state.bpm);
     syncKit();
+    applySeqShare();
     save();
     const tab = document.querySelector('[data-view].is-selected');
     showView(tab ? tab.dataset.view : 'drums');
@@ -814,6 +1118,265 @@
     return node;
   }
 
+  function iconButton(className, attrs, iconName) {
+    const node = button(className, attrs);
+    node.append(iconEl(iconName));
+    return node;
+  }
+
+  function selectPattern(id, refresh) {
+    if (!state.patterns.some(item => item.id === id)) return;
+    const same = state.patternId === id;
+    state.patternId = id;
+    save();
+    if (refresh === false) {
+      renderBank();
+      document.querySelectorAll('.tl-clip').forEach((node, index) => {
+        node.classList.toggle('is-selected', state.arrangement[index] && state.arrangement[index].patternId === id);
+      });
+      return;
+    }
+    if (same) return;
+    patternPage = 0;
+    const tab = document.querySelector('[data-view].is-selected');
+    showView(tab ? tab.dataset.view : 'drums');
+  }
+
+  function addPattern() {
+    const id = 'p' + state.nextPattern;
+    state.nextPattern += 1;
+    const notes = {};
+    state.tracks.forEach(track => { notes[track.id] = []; });
+    state.patterns.push({
+      id,
+      name: nextPatternName(state.patterns),
+      bars: 1,
+      drums: emptyDrums(1),
+      notes
+    });
+    selectPattern(id);
+  }
+
+  function resizeCurrentPattern(bars) {
+    const pattern = currentPattern();
+    const next = resizePattern(pattern, bars);
+    if (next === pattern) return;
+    const index = state.patterns.findIndex(item => item.id === pattern.id);
+    state.patterns[index] = next;
+    save();
+    const tab = document.querySelector('[data-view].is-selected');
+    showView(tab ? tab.dataset.view : 'drums');
+  }
+
+  function deleteCurrentPattern() {
+    if (state.patterns.length < 2) return;
+    const id = state.patternId;
+    state.patterns = state.patterns.filter(item => item.id !== id);
+    state.arrangement = state.arrangement.filter(clip => clip.patternId !== id);
+    state.patternId = state.patterns[0].id;
+    save();
+    const tab = document.querySelector('[data-view].is-selected');
+    showView(tab ? tab.dataset.view : 'drums');
+  }
+
+  function renderBank() {
+    const root = document.getElementById('pattern-bank');
+    const row = document.createElement('div');
+    row.className = 'pattern-row';
+    state.patterns.forEach(pattern => {
+      const chip = button(
+        'chip' + (pattern.id === state.patternId ? ' is-selected' : ''),
+        { 'data-pattern': pattern.id, title: pattern.name + ' · ' + pattern.bars + ' bar · double-click to rename' },
+        pattern.name
+      );
+      chip.style.setProperty('--pad', patternColor(pattern.id));
+      row.append(chip);
+    });
+    const add = iconButton('icon-button', { 'data-pattern-add': '1', 'aria-label': 'Add pattern', title: 'Add pattern' }, 'fa-plus');
+    const mid = document.createElement('div');
+    mid.className = 'pattern-mid';
+    mid.append(row, add);
+    const del = iconButton('icon-button', { 'data-pattern-del': '1', 'aria-label': 'Delete pattern', title: 'Delete pattern' }, 'fa-trash');
+    del.disabled = state.patterns.length < 2;
+    del.classList.add('pattern-reset');
+    root.replaceChildren(mid, del);
+  }
+
+  function startRename(id) {
+    const pattern = state.patterns.find(item => item.id === id);
+    const chip = document.querySelector('[data-pattern="' + id + '"]');
+    if (!pattern || !chip || chip.querySelector('.pattern-name')) return;
+    const input = document.createElement('input');
+    input.className = 'pattern-name';
+    input.value = pattern.name;
+    input.maxLength = 16;
+    input.setAttribute('aria-label', 'Pattern name');
+    chip.replaceChildren(input);
+    input.focus();
+    input.select();
+    const commit = () => {
+      pattern.name = input.value.trim().slice(0, 16) || pattern.name;
+      save();
+      renderBank();
+      renderTimeline();
+    };
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Enter') { event.preventDefault(); input.blur(); }
+      if (event.key === 'Escape') {
+        input.value = pattern.name;
+        input.blur();
+      }
+    });
+    input.addEventListener('click', event => event.stopPropagation());
+  }
+
+  function loopEndBar() {
+    return state.loopEnd || songLengthBars(state.arrangement, state.patterns, state.loopEnd);
+  }
+
+  function renderTimeline() {
+    const root = document.getElementById('timeline');
+    const tools = document.createElement('div');
+    tools.className = 'tl-tools';
+    tools.append(
+      iconButton('icon-button', { 'data-zoom': 'out', 'aria-label': 'Zoom out', title: 'Zoom out' }, 'fa-magnifying-glass-minus'),
+      iconButton('icon-button', { 'data-zoom': 'in', 'aria-label': 'Zoom in', title: 'Zoom in' }, 'fa-magnifying-glass-plus')
+    );
+    const scroll = document.createElement('div');
+    scroll.className = 'tl-scroll';
+    const needed = songLengthBars(state.arrangement, state.patterns, state.loopEnd);
+    const host = document.getElementById('timeline');
+    const fill = host && host.clientWidth ? Math.ceil(host.clientWidth / state.pxPerBar) : 0;
+    const bars = Math.max(needed, fill, 4);
+    const inner = document.createElement('div');
+    inner.className = 'tl-inner';
+    inner.style.width = bars * state.pxPerBar + 'px';
+    const ruler = document.createElement('div');
+    ruler.className = 'tl-ruler';
+    for (let bar = 0; bar < bars; bar += 1) {
+      for (let six = 0; six < 16; six += 1) {
+        const tick = document.createElement('span');
+        tick.className = 'tl-tick' + (six === 0 ? ' is-bar' : six % 4 === 0 ? ' is-beat' : ' is-16');
+        tick.style.left = (bar + six / 16) * state.pxPerBar + 'px';
+        if (six === 0) tick.textContent = String(bar + 1);
+        ruler.append(tick);
+      }
+    }
+    const loop = document.createElement('div');
+    loop.className = 'tl-loop';
+    const loopStart = state.loopStart;
+    const loopEnd = loopEndBar();
+    loop.style.left = loopStart * state.pxPerBar + 'px';
+    loop.style.width = Math.max(1, loopEnd - loopStart) * state.pxPerBar + 'px';
+    const hStart = button('tl-handle', { 'data-loop': 'start', 'aria-label': 'Loop start' });
+    const hEnd = button('tl-handle', { 'data-loop': 'end', 'aria-label': 'Loop end' });
+    loop.append(hStart, hEnd);
+    ruler.append(loop);
+    const lane = document.createElement('div');
+    lane.className = 'tl-lane';
+    state.arrangement.forEach((clip, index) => {
+      const pattern = state.patterns.find(item => item.id === clip.patternId);
+      if (!pattern) return;
+      const node = document.createElement('div');
+      node.className = 'tl-clip' + (clip.patternId === state.patternId ? ' is-selected' : '');
+      node.dataset.clip = String(index);
+      node.style.left = clip.startBar * state.pxPerBar + 'px';
+      node.style.width = clipBars(clip, state.patterns) * state.pxPerBar + 'px';
+      node.style.background = patternColor(clip.patternId);
+      node.textContent = pattern.name + (clip.repeats > 1 ? ' ×' + clip.repeats : '');
+      const edge = document.createElement('span');
+      edge.className = 'tl-clip-end';
+      edge.dataset.clipEnd = String(index);
+      node.append(edge);
+      lane.append(node);
+    });
+    const play = document.createElement('div');
+    play.className = 'tl-playhead';
+    play.hidden = true;
+    inner.append(ruler, lane, play);
+    scroll.append(inner);
+    root.replaceChildren(tools, scroll);
+    paintPlayhead();
+  }
+
+  function clearCurrentPattern() {
+    const pattern = currentPattern();
+    pattern.drums = emptyDrums(pattern.bars);
+    Object.keys(pattern.notes).forEach(id => { pattern.notes[id] = []; });
+    save();
+    const tab = document.querySelector('[data-view].is-selected');
+    showView(tab ? tab.dataset.view : 'drums');
+  }
+
+  function handleBarMeter(event) {
+    if (event.target.closest('[data-clear-pattern]')) {
+      clearCurrentPattern();
+      return true;
+    }
+    if (event.target.closest('[data-pattern-grow]')) {
+      resizeCurrentPattern(currentPattern().bars * 2);
+      return true;
+    }
+    if (event.target.closest('[data-pattern-half]')) {
+      resizeCurrentPattern(currentPattern().bars / 2);
+      return true;
+    }
+    const page = event.target.closest('[data-page]');
+    if (page) {
+      if (page.disabled) return true;
+      patternPage += Number(page.dataset.page);
+      viewBars();
+      const tab = document.querySelector('[data-view].is-selected');
+      showView(tab ? tab.dataset.view : 'drums');
+      return true;
+    }
+    const slot = event.target.closest('[data-bar-page]');
+    if (slot) {
+      patternPage = Number(slot.dataset.barPage);
+      viewBars();
+      const tab = document.querySelector('[data-view].is-selected');
+      showView(tab ? tab.dataset.view : 'drums');
+      return true;
+    }
+    return false;
+  }
+
+  function renderBarMeter() {
+    const wrap = document.createElement('div');
+    wrap.className = 'bar-meter';
+    const pattern = currentPattern();
+    const pages = pageCount();
+    const prev = iconButton('icon-button', { 'data-page': '-1', 'aria-label': 'Previous bars', title: 'Previous bars' }, 'fa-chevron-left');
+    prev.disabled = pages < 2 || patternPage <= 0;
+    const slots = document.createElement('div');
+    slots.className = 'bar-slots';
+    slots.setAttribute('aria-label', pattern.bars + (pattern.bars === 1 ? ' bar' : ' bars'));
+    for (let i = 0; i < pattern.bars; i += 1) {
+      const page = Math.floor(i / PAGE_BARS);
+      slots.append(button(
+        'bar-slot' + (page === patternPage ? ' is-on' : ''),
+        { 'data-bar-page': String(page), 'aria-label': 'Bar ' + (i + 1), 'aria-current': page === patternPage ? 'true' : 'false' },
+        String(i + 1)
+      ));
+    }
+    const next = iconButton('icon-button', { 'data-page': '1', 'aria-label': 'Next bars', title: 'Next bars' }, 'fa-chevron-right');
+    next.disabled = pages < 2 || patternPage >= pages - 1;
+    const len = document.createElement('span');
+    len.className = 'bar-len';
+    len.textContent = pattern.bars + (pattern.bars === 1 ? ' bar' : ' bars');
+    const grow = iconButton('icon-button', { 'data-pattern-grow': '1', 'aria-label': 'Double length', title: 'Double length' }, 'fa-expand');
+    grow.disabled = pattern.bars >= 8;
+    const half = iconButton('icon-button', { 'data-pattern-half': '1', 'aria-label': 'Halve length', title: 'Halve length' }, 'fa-compress');
+    half.disabled = pattern.bars <= 1;
+    const main = document.createElement('div');
+    main.className = 'bar-meter-main';
+    main.append(prev, slots, next, len, grow, half);
+    const clear = iconButton('icon-button', { 'data-clear-pattern': '1', 'aria-label': 'Clear pattern', title: 'Clear pattern' }, 'fa-eraser');
+    wrap.append(main, clear);
+    return wrap;
+  }
+
   function renderDrums() {
     const root = document.getElementById('view-drums');
     const drums = document.createElement('div');
@@ -822,6 +1385,7 @@
     rack.className = 'pad-rack';
     const grid = document.createElement('div');
     grid.className = 'step-grid';
+    const view = viewBars();
     PADS.forEach(pad => {
       const padButton = button('pad', { 'data-audition': pad.id }, pad.name);
       padButton.style.setProperty('--pad', pad.color);
@@ -829,19 +1393,24 @@
       rack.append(padButton);
       const row = document.createElement('div');
       row.className = 'step-row';
+      row.style.gridTemplateColumns = '5.6rem repeat(' + (view.count * STEPS) + ', minmax(1.05rem, 1fr))';
       const label = document.createElement('span');
       label.className = 'step-label';
       label.textContent = pad.name;
       label.style.color = pad.color;
       row.append(label);
-      for (let step = 0; step < STEPS; step += 1) {
-        const on = state.drums[pad.id][step];
-        const cell = button('step' + (on ? ' is-on' : '') + (step % 4 === 0 ? ' is-beat' : ''), {
+      const step0 = view.start * STEPS;
+      for (let i = 0; i < view.count * STEPS; i += 1) {
+        const step = step0 + i;
+        const on = currentPattern().drums[pad.id][step];
+        const cell = button(
+          'step' + (on ? ' is-on' : '') + (step % STEPS === 0 ? ' is-bar' : '') + (step % 4 === 0 ? ' is-beat' : ''),
+          {
           'data-pad': pad.id,
           'data-step': String(step * 2),
           'data-span': '2',
           'aria-pressed': on ? 'true' : 'false',
-          'aria-label': pad.name + ' step ' + (step + 1)
+          'aria-label': pad.name + ' bar ' + (Math.floor(step / STEPS) + 1) + ' step ' + (step % STEPS + 1)
         });
         cell.style.setProperty('--pad', pad.color);
         row.append(cell);
@@ -849,7 +1418,7 @@
       grid.append(row);
     });
     drums.append(rack, grid);
-    root.replaceChildren(drums);
+    root.replaceChildren(renderBarMeter(), drums);
     paintPlayhead();
   }
 
@@ -865,7 +1434,7 @@
 
   function paintRoll(track) {
     const span = gridSpan();
-    document.querySelectorAll('#piano-roll .cell').forEach(cell => paintCell(cell, track.notes, span));
+    document.querySelectorAll('#piano-roll .cell').forEach(cell => paintCell(cell, trackNotes(track), span));
   }
 
   function renderPiano() {
@@ -932,15 +1501,19 @@
       const roll = document.createElement('div');
       roll.className = 'roll';
       roll.id = 'piano-roll';
-      roll.style.setProperty('--cols', String(state.grid));
+      roll.style.setProperty('--cols', String(state.grid * viewBars().count));
       const color = trackColor(track.type);
+      const notes = trackNotes(track);
+      const view = viewBars();
+      const tick0 = view.start * TICKS;
+      const ticksMax = tick0 + view.count * TICKS;
       for (let midi = NOTE_HI; midi >= NOTE_LO; midi -= 1) {
         if (!inScale(midi, state.root, state.mode)) continue;
         const name = button('note-name' + (isBlack(midi) ? ' is-black' : ''), { 'data-key': String(midi) }, noteName(midi));
         roll.append(name);
-        for (let tick = 0; tick < TICKS; tick += span) {
+        for (let tick = tick0; tick < ticksMax; tick += span) {
           const cell = button(
-            'cell' + (isBlack(midi) ? ' is-black' : '') + (tick % 8 === 0 ? ' is-beat' : ''),
+            'cell' + (isBlack(midi) ? ' is-black' : '') + (tick % TICKS === 0 ? ' is-bar' : '') + (tick % 8 === 0 ? ' is-beat' : ''),
             {
               'data-step': String(tick),
               'data-span': String(span),
@@ -949,7 +1522,7 @@
             }
           );
           cell.style.setProperty('--pad', color);
-          paintCell(cell, track.notes, span);
+          paintCell(cell, notes, span);
           roll.append(cell);
         }
       }
@@ -963,7 +1536,7 @@
       if (!inScale(midi, state.root, state.mode)) continue;
       keys.append(button('key' + (isBlack(midi) ? ' is-black' : ''), { 'data-key': String(midi) }, NOTE_NAMES[midi % 12]));
     }
-    root.replaceChildren(bar, wrap, keys);
+    root.replaceChildren(bar, renderBarMeter(), wrap, keys);
     paintPlayhead();
   }
 
@@ -1091,6 +1664,12 @@
     if (name === 'drums') renderDrums();
     if (name === 'piano') renderPiano();
     if (name === 'mixer') renderMixer();
+    document.querySelector('.mpc').classList.toggle('is-mixer', name === 'mixer');
+    if (name !== 'mixer') {
+      renderBank();
+      renderTimeline();
+    }
+    syncPlayMode();
   }
 
   function syncKit() {
@@ -1112,9 +1691,9 @@
     state.tracks.push({
       id,
       type,
-      name: (type === 'fart' ? 'Fart ' : 'Queef ') + count,
-      notes: []
+      name: (type === 'fart' ? 'Fart ' : 'Queef ') + count
     });
+    state.patterns.forEach(pattern => { pattern.notes[id] = []; });
     state.mix[id] = defaultMix();
     state.selectedTrack = id;
     if (ctx) {
@@ -1130,6 +1709,7 @@
     if (!track) return;
     state.tracks = state.tracks.filter(item => item.id !== track.id);
     delete state.mix[track.id];
+    state.patterns.forEach(pattern => { delete pattern.notes[track.id]; });
     destroyStrip(track.id);
     state.selectedTrack = state.tracks.length ? state.tracks[0].id : null;
     save();
@@ -1141,6 +1721,7 @@
     const bpm = document.getElementById('bpm');
     bpm.value = String(state.bpm);
     syncKit();
+    applySeqShare();
     showView('drums');
 
     document.getElementById('play-button').addEventListener('click', () => {
@@ -1176,9 +1757,174 @@
       const tab = event.target.closest('[data-view]');
       if (tab) showView(tab.dataset.view);
     });
+    const split = document.getElementById('seq-split');
+    split.addEventListener('pointerdown', event => {
+      if (event.button) return;
+      const view = document.querySelector('.mpc-view:not([hidden])');
+      const timeline = document.getElementById('timeline');
+      const total = view.offsetHeight + timeline.offsetHeight;
+      if (!total) return;
+      const startY = event.clientY;
+      const startH = timeline.offsetHeight;
+      try { split.setPointerCapture(event.pointerId); } catch (err) { /* no hardware pointer */ }
+      const onMove = ev => {
+        state.seqShare = clamp((startH + (startY - ev.clientY)) / total, 0.18, 0.7, state.seqShare);
+        applySeqShare();
+      };
+      const onUp = () => {
+        split.removeEventListener('pointermove', onMove);
+        split.removeEventListener('pointerup', onUp);
+        split.removeEventListener('pointercancel', onUp);
+        save();
+      };
+      split.addEventListener('pointermove', onMove);
+      split.addEventListener('pointerup', onUp);
+      split.addEventListener('pointercancel', onUp);
+    });
+    split.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      event.preventDefault();
+      state.seqShare = clamp(state.seqShare + (event.key === 'ArrowUp' ? 0.04 : -0.04), 0.18, 0.7, state.seqShare);
+      applySeqShare();
+      save();
+    });
+    document.querySelector('.mode-switch').addEventListener('click', event => {
+      const tab = event.target.closest('[data-mode]');
+      if (!tab || tab.disabled) return;
+      if (tab.dataset.mode === 'song' && !state.arrangement.length) return;
+      state.playSong = tab.dataset.mode === 'song';
+      syncPlayMode();
+      save();
+      if (playing) {
+        stopTransport();
+        startTransport();
+      }
+    });
+    document.getElementById('pattern-bank').addEventListener('click', event => {
+      if (event.target.closest('.pattern-name')) return;
+      if (event.target.closest('[data-pattern-add]')) { addPattern(); return; }
+      if (event.target.closest('[data-pattern-grow]')) { resizeCurrentPattern(currentPattern().bars * 2); return; }
+      if (event.target.closest('[data-pattern-half]')) { resizeCurrentPattern(currentPattern().bars / 2); return; }
+      if (event.target.closest('[data-pattern-del]')) { deleteCurrentPattern(); return; }
+      const chip = event.target.closest('[data-pattern]');
+      if (chip) selectPattern(chip.dataset.pattern);
+    });
+    document.getElementById('pattern-bank').addEventListener('dblclick', event => {
+      const chip = event.target.closest('[data-pattern]');
+      if (chip) startRename(chip.dataset.pattern);
+    });
+
+    const timeline = document.getElementById('timeline');
+    function barAt(clientX) {
+      const inner = timeline.querySelector('.tl-inner');
+      if (!inner) return 0;
+      return Math.max(0, Math.floor((clientX - inner.getBoundingClientRect().left) / state.pxPerBar));
+    }
+    timeline.addEventListener('click', event => {
+      const zoom = event.target.closest('[data-zoom]');
+      if (!zoom) return;
+      state.pxPerBar = clamp(state.pxPerBar + (zoom.dataset.zoom === 'in' ? 12 : -12), 16, 160, state.pxPerBar);
+      save();
+      renderTimeline();
+    });
+    timeline.addEventListener('wheel', event => {
+      if (!event.target.closest('.tl-scroll')) return;
+      event.preventDefault();
+      state.pxPerBar = clamp(state.pxPerBar + (event.deltaY < 0 ? 8 : -8), 16, 160, state.pxPerBar);
+      save();
+      renderTimeline();
+    }, { passive: false });
+    timeline.addEventListener('pointerdown', event => {
+      const handle = event.target.closest('[data-loop]');
+      if (handle) {
+        tlDrag = { kind: handle.dataset.loop === 'start' ? 'loopStart' : 'loopEnd', pointerId: event.pointerId };
+        timeline.setPointerCapture(event.pointerId);
+        return;
+      }
+      const edge = event.target.closest('[data-clip-end]');
+      if (edge) {
+        const index = Number(edge.dataset.clipEnd);
+        tlDrag = { kind: 'repeat', index, pointerId: event.pointerId };
+        timeline.setPointerCapture(event.pointerId);
+        return;
+      }
+      const clip = event.target.closest('[data-clip]');
+      if (clip) {
+        const index = Number(clip.dataset.clip);
+        tlDrag = {
+          kind: 'move',
+          index,
+          pointerId: event.pointerId,
+          originBar: state.arrangement[index].startBar,
+          grabBar: barAt(event.clientX),
+          moved: false
+        };
+        timeline.setPointerCapture(event.pointerId);
+        return;
+      }
+      if (!event.target.closest('.tl-lane')) return;
+      const startBar = barAt(event.clientX);
+      const pattern = currentPattern();
+      if (!clipFits(state.arrangement, -1, startBar, pattern.bars, state.patterns)) return;
+      state.arrangement.push({ patternId: pattern.id, startBar, repeats: 1 });
+      state.arrangement.sort((a, b) => a.startBar - b.startBar);
+      save();
+      syncPlayMode();
+      renderTimeline();
+    });
+    timeline.addEventListener('pointermove', event => {
+      if (!tlDrag || event.pointerId !== tlDrag.pointerId) return;
+      const bar = barAt(event.clientX);
+      if (tlDrag.kind === 'loopStart') {
+        state.loopStart = Math.max(0, Math.min(bar, loopEndBar() - 1));
+        renderTimeline();
+        return;
+      }
+      if (tlDrag.kind === 'loopEnd') {
+        state.loopEnd = Math.max(state.loopStart + 1, bar + 1);
+        renderTimeline();
+        return;
+      }
+      if (tlDrag.kind === 'move') {
+        const clip = state.arrangement[tlDrag.index];
+        const span = clipBars(clip, state.patterns);
+        const next = Math.max(0, tlDrag.originBar + (bar - tlDrag.grabBar));
+        if (next === clip.startBar) return;
+        if (!clipFits(state.arrangement, tlDrag.index, next, span, state.patterns)) return;
+        clip.startBar = next;
+        tlDrag.moved = true;
+        renderTimeline();
+        return;
+      }
+      if (tlDrag.kind === 'repeat') {
+        const clip = state.arrangement[tlDrag.index];
+        const pattern = state.patterns.find(item => item.id === clip.patternId);
+        if (!pattern) return;
+        const repeats = Math.max(1, Math.ceil((bar + 1 - clip.startBar) / pattern.bars));
+        if (repeats === clip.repeats) return;
+        if (!clipFits(state.arrangement, tlDrag.index, clip.startBar, pattern.bars * repeats, state.patterns)) return;
+        clip.repeats = repeats;
+        renderTimeline();
+      }
+    });
+    const endTl = event => {
+      if (!tlDrag || (event && event.pointerId !== tlDrag.pointerId)) return;
+      const drag = tlDrag;
+      tlDrag = null;
+      if (drag.kind === 'move' && !drag.moved) {
+        selectPattern(state.arrangement[drag.index].patternId);
+        return;
+      }
+      save();
+      syncPlayMode();
+      renderTimeline();
+    };
+    timeline.addEventListener('pointerup', endTl);
+    timeline.addEventListener('pointercancel', endTl);
 
     const drumsView = document.getElementById('view-drums');
     drumsView.addEventListener('click', event => {
+      if (handleBarMeter(event)) return;
       const audition = event.target.closest('[data-audition]');
       if (audition) {
         const id = audition.dataset.audition;
@@ -1189,14 +1935,16 @@
       if (!cell) return;
       const pad = cell.dataset.pad;
       const step = Number(cell.dataset.step) >> 1;
-      state.drums[pad][step] = !state.drums[pad][step];
-      cell.classList.toggle('is-on', state.drums[pad][step]);
-      cell.setAttribute('aria-pressed', state.drums[pad][step] ? 'true' : 'false');
+      const row = currentPattern().drums[pad];
+      row[step] = !row[step];
+      cell.classList.toggle('is-on', row[step]);
+      cell.setAttribute('aria-pressed', row[step] ? 'true' : 'false');
       save();
     });
 
     const pianoView = document.getElementById('view-piano');
     pianoView.addEventListener('click', event => {
+      if (handleBarMeter(event)) return;
       const add = event.target.closest('[data-add]');
       if (add) { addTrack(add.dataset.add); return; }
       const select = event.target.closest('[data-select]');
@@ -1236,14 +1984,14 @@
       const step = Number(cell.dataset.step);
       const span = Number(cell.dataset.span || gridSpan());
       const pitch = Number(cell.dataset.pitch);
-      const hit = noteAt(track.notes, step, pitch, span);
+      const hit = noteAt(trackNotes(track), step, pitch, span);
       if (hit) {
         drag = { pitch, origin: hit.step, length: hit.length, pointerId: event.pointerId, erase: true };
         pianoView.setPointerCapture(event.pointerId);
         return;
       }
       drag = { pitch, origin: step, length: span, pointerId: event.pointerId, erase: false };
-      track.notes = placeNote(track.notes, step, pitch, span);
+      currentPattern().notes[track.id] = placeNote(trackNotes(track), step, pitch, span, patternTicks());
       paintRoll(track);
       audition(pitch);
       pianoView.setPointerCapture(event.pointerId);
@@ -1262,7 +2010,7 @@
       drag.length = length;
       drag.erase = false;
       const track = selectedTrack();
-      track.notes = placeNote(track.notes, drag.origin, pitch, length);
+      currentPattern().notes[track.id] = placeNote(trackNotes(track), drag.origin, pitch, length, patternTicks());
       paintRoll(track);
     });
     const endDrag = event => {
@@ -1270,7 +2018,7 @@
       if (drag.erase) {
         const track = selectedTrack();
         if (track) {
-          track.notes = removeNoteAt(track.notes, drag.origin, drag.pitch);
+          currentPattern().notes[track.id] = removeNoteAt(trackNotes(track), drag.origin, drag.pitch);
           paintRoll(track);
         }
       }
@@ -1289,10 +2037,10 @@
       const step = Number(cell.dataset.step);
       const span = Number(cell.dataset.span || gridSpan());
       const pitch = Number(cell.dataset.pitch);
-      if (noteAt(track.notes, step, pitch, span)) {
-        track.notes = removeNoteAt(track.notes, step, pitch, span);
+      if (noteAt(trackNotes(track), step, pitch, span)) {
+        currentPattern().notes[track.id] = removeNoteAt(trackNotes(track), step, pitch, span);
       } else {
-        track.notes = placeNote(track.notes, step, pitch, span);
+        currentPattern().notes[track.id] = placeNote(trackNotes(track), step, pitch, span, patternTicks());
         audition(pitch);
       }
       save();

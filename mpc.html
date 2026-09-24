@@ -6,6 +6,8 @@
   <meta name="theme-color" content="#141210">
   <meta name="description" content="Multi Poop Composer — synthesized drums, fart and queef piano roll, mixer">
   <title>MPC — Multi Poop Composer</title>
+  <link rel="stylesheet" href="fontawesome/css/fontawesome.min.css">
+  <link rel="stylesheet" href="fontawesome/css/solid.min.css">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="mpc.css">
   <script src="mpc.js" defer></script>
@@ -22,8 +24,20 @@
         <h1>Multi Poop <span>Composer</span></h1>
       </div>
       <div class="transport" aria-label="Transport">
-        <button class="play-button" id="play-button" type="button" aria-pressed="false">Play</button>
-        <button class="reset-button" id="reset-button" type="button" title="Reset pattern, kit, BPM, and mix">Reset</button>
+        <button class="play-button" id="play-button" type="button" aria-pressed="false" aria-label="Play">
+          <i class="fa-solid fa-play" aria-hidden="true"></i>
+        </button>
+        <div class="mode-switch" role="group" aria-label="Play mode">
+          <button type="button" data-mode="pattern" aria-pressed="true" title="Pattern" aria-label="Pattern">
+            <i class="fa-solid fa-repeat" aria-hidden="true"></i>
+          </button>
+          <button type="button" data-mode="song" aria-pressed="false" title="Song" aria-label="Song" disabled>
+            <i class="fa-solid fa-bars-staggered" aria-hidden="true"></i>
+          </button>
+        </div>
+        <button class="reset-button" id="reset-button" type="button" aria-label="Reset" title="Reset pattern, kit, BPM, and mix">
+          <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+        </button>
         <label class="bpm-label">BPM
           <input id="bpm" type="number" min="40" max="240" step="1" value="140" inputmode="numeric">
         </label>
@@ -41,6 +55,9 @@
     <section class="mpc-view" id="view-drums" data-view-panel="drums" aria-label="Drum machine"></section>
     <section class="mpc-view" id="view-piano" data-view-panel="piano" aria-label="Piano roll" hidden></section>
     <section class="mpc-view" id="view-mixer" data-view-panel="mixer" aria-label="Mixer" hidden></section>
+    <nav class="pattern-bank" id="pattern-bank" aria-label="Patterns"></nav>
+    <div class="seq-split" id="seq-split" role="separator" aria-orientation="horizontal" aria-label="Resize sequencer" tabindex="0"></div>
+    <section class="timeline" id="timeline" aria-label="Arrangement"></section>
   </main>
 </body>
 </html>
