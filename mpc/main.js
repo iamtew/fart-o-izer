@@ -1,4 +1,4 @@
-import { SONG_ID, SONG_NAME_MAX, DEFAULT_SONG, MIX_PARAMS, rt } from './const.js';
+import { SONG_ID, SONG_NAME_MAX, DEFAULT_SONG, MIX_PARAMS, rt, padPointers } from './const.js';
 import {
   selfCheck, clamp, cleanSongName, payloadOf, freshState, decodePayload,
   clipFits, clipBars, noteAt, placeNote, removeNoteAt, moveNote, defaultMix, defaultVoice
@@ -123,11 +123,11 @@ export function init() {
     showView(currentViewName() === 'mixer' ? rt.lastEditView : 'mixer');
   });
   document.querySelector('.mpc').addEventListener('mousedown', event => {
-    const kit = event.target.closest('.kit-view');
+    const kit = event.target.closest('.kit-view[data-view="drums"]');
     if (kit && document.getElementById('view-drums').hidden) showView('drums');
   });
   document.querySelector('.mpc').addEventListener('change', event => {
-    const kit = event.target.closest('.kit-view');
+    const kit = event.target.closest('.kit-view[data-view="drums"]');
     if (!kit) return;
     rt.state.kit = kit.value === '909' ? '909' : '808';
     save();
@@ -365,10 +365,11 @@ export function init() {
     const pad = event.target.closest('[data-audition]');
     if (!pad || event.button) return;
     event.preventDefault();
-    if (padPointers.has(event.pointerId)) return;
+    if (padPointers.has(event.pointerId)) endLivePointer(event.pointerId);
     padPointers.set(event.pointerId, { kind: 'pad', el: pad });
     pad.classList.add('is-down');
     hitPad(pad.dataset.audition);
+    try { pad.setPointerCapture(event.pointerId); } catch (err) { /* no hardware pointer */ }
   });
   drumsView.addEventListener('pointerup', event => endLivePointer(event.pointerId));
   drumsView.addEventListener('pointercancel', event => endLivePointer(event.pointerId));

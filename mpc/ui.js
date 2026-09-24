@@ -810,7 +810,7 @@ export function showView(name) {
 }
 
 export function syncKit() {
-  document.querySelectorAll('.kit-view').forEach(sel => { sel.value = rt.state.kit; });
+  document.querySelectorAll('.kit-view[data-view="drums"]').forEach(sel => { sel.value = rt.state.kit; });
 }
 
 export function addTrack(type) {
