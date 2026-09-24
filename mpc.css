@@ -73,6 +73,33 @@ body {
   font-size: 0.75rem;
 }
 
+.song-dialog {
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 1.1rem 1.2rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  color: var(--ink);
+  background: var(--panel);
+}
+.song-dialog::backdrop {
+  background: color-mix(in srgb, #141210 72%, transparent);
+}
+.song-dialog p {
+  margin: 0 0 0.9rem;
+  color: var(--muted);
+}
+.song-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+.song-dialog .reset-button {
+  min-width: auto;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.4rem;
+}
+
 .transport {
   display: flex;
   flex-wrap: wrap;

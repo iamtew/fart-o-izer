@@ -20,6 +20,7 @@
   const MINOR = [0, 2, 3, 5, 7, 8, 10];
   const STORAGE_KEY = 'fart-o-izer-mpc';
   const LIBRARY_KEY = 'fart-o-izer-mpc-songs';
+  const DEFAULT_SONG = '__default__';
   const SONG_ID = 'SongID';
   const SONG_VERSION = 1;
   const SONG_NAME_MAX = 40;
@@ -383,7 +384,7 @@
     const pattern = { id: 'p1', name: 'PATTERN', bars: 1, drums: emptyDrums(1), notes: {} };
     return {
       kit: '808', bpm: 140, tracks: [], mix, nextId: 1, selectedTrack: null,
-      grid: 16, root: 0, mode: 'chromatic', ticks: TICKS,
+      grid: 16, root: 5, mode: 'major', ticks: TICKS,
       patterns: [pattern], patternId: 'p1', nextPattern: 2,
       arrangement: [], loopStart: 0, loopEnd: 0, playSong: false, pxPerBar: 48, seqShare: 0.33,
       songName: ''
@@ -623,6 +624,10 @@
     const encoded = encodePayload({ v: SONG_VERSION, songName: 'Silent Toot', bpm: 90, kit: '808' });
     const fromId = parseSongText(encoded);
     if (!fromId || fromId.songName !== 'Silent Toot') throw new Error('MPC should still read old SongID text');
+    if (payloadOf(freshState()).mode !== 'major' || payloadOf(freshState()).root !== 5) {
+      throw new Error('MPC blank template should be F major');
+    }
+    if (DEFAULT_SONG === 'Default') throw new Error('MPC Default option value should be reserved');
   }
 
   const state = loadState();
@@ -643,9 +648,43 @@
   let hats = [];
   let meterRaf = 0;
   const meterSamples = new Float32Array(256);
+  let snapshot = '';
+  let loadedFrom = DEFAULT_SONG;
 
   function save() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (err) { /* quota: pattern still plays */ }
+  }
+
+  function markClean() {
+    snapshot = JSON.stringify(songPayload());
+  }
+
+  function isDirty() {
+    return JSON.stringify(songPayload()) !== snapshot;
+  }
+
+  function askDialog(id) {
+    const dialog = document.getElementById(id);
+    dialog.returnValue = 'cancel';
+    dialog.showModal();
+    return new Promise(resolve => {
+      dialog.addEventListener('close', () => resolve(dialog.returnValue || 'cancel'), { once: true });
+    });
+  }
+
+  async function confirmDiscard() {
+    if (!isDirty()) return 'discard';
+    return askDialog('leave-dialog');
+  }
+
+  async function leaveSong() {
+    const choice = await confirmDiscard();
+    if (choice === 'cancel') return false;
+    if (choice === 'save') {
+      saveToLibrary();
+      if (isDirty()) return false;
+    }
+    return true;
   }
 
   function setSongStatus(message) {
@@ -659,23 +698,27 @@
   }
 
   function songPayload() {
+    return payloadOf(state);
+  }
+
+  function payloadOf(s) {
     return {
       v: SONG_VERSION,
-      songName: state.songName,
-      kit: state.kit,
-      bpm: state.bpm,
-      grid: state.grid,
-      root: state.root,
-      mode: state.mode,
-      tracks: state.tracks,
-      mix: state.mix,
-      patterns: state.patterns,
-      arrangement: state.arrangement,
-      loopStart: state.loopStart,
-      loopEnd: state.loopEnd,
-      nextId: state.nextId,
-      nextPattern: state.nextPattern,
-      patternId: state.patternId
+      songName: s.songName,
+      kit: s.kit,
+      bpm: s.bpm,
+      grid: s.grid,
+      root: s.root,
+      mode: s.mode,
+      tracks: s.tracks,
+      mix: s.mix,
+      patterns: s.patterns,
+      arrangement: s.arrangement,
+      loopStart: s.loopStart,
+      loopEnd: s.loopEnd,
+      nextId: s.nextId,
+      nextPattern: s.nextPattern,
+      patternId: s.patternId
     };
   }
 
@@ -717,8 +760,8 @@
 
   function upsertLibrary(payload) {
     const name = cleanSongName(payload && payload.songName);
-    if (!name) return;
-    const list = loadLibrary().filter(item => item.name !== name);
+    if (!name || name.toLowerCase() === 'default') return;
+    const list = loadLibrary().filter(item => item.name !== name && item.name.toLowerCase() !== 'default');
     list.push({ name, song: payload });
     list.sort((a, b) => a.name.localeCompare(b.name));
     writeLibrary(list);
@@ -727,39 +770,57 @@
   function syncLibrarySelect() {
     const select = document.getElementById('song-library');
     if (!select) return;
-    const current = cleanSongName(state.songName);
-    const blank = document.createElement('option');
-    blank.value = '';
-    blank.textContent = 'Saved songs';
-    const nodes = [blank];
+    const def = document.createElement('option');
+    def.value = DEFAULT_SONG;
+    def.textContent = 'Default';
+    const nodes = [def];
     loadLibrary().forEach(item => {
+      if (item.name.toLowerCase() === 'default') return;
       const option = document.createElement('option');
       option.value = item.name;
       option.textContent = item.name;
-      if (item.name === current) option.selected = true;
       nodes.push(option);
     });
     select.replaceChildren(...nodes);
+    select.value = loadedFrom;
   }
 
   function saveToLibrary() {
     const name = ensureSongName();
+    if (name.toLowerCase() === 'default') {
+      setSongStatus('Default is the blank template. Pick another name.');
+      return false;
+    }
     upsertLibrary(songPayload());
+    loadedFrom = name;
+    markClean();
     syncLibrarySelect();
     setSongStatus('Saved ' + name + ' in this browser.');
+    return true;
+  }
+
+  function loadDefault() {
+    loadedFrom = DEFAULT_SONG;
+    adoptState(freshState());
+    setSongStatus('Loaded Default.');
   }
 
   function loadFromLibrary(name) {
+    if (name === DEFAULT_SONG) {
+      loadDefault();
+      return;
+    }
     const item = loadLibrary().find(entry => entry.name === name);
     if (!item) return;
+    loadedFrom = name;
     adoptState(hydrateFromRaw(item.song));
     setSongStatus('Loaded ' + state.songName + '.');
   }
 
-  function deleteFromLibrary() {
+  async function deleteFromLibrary() {
     const name = cleanSongName(state.songName);
-    if (!name) {
-      setSongStatus('Name a saved song to remove it.');
+    if (!name || name.toLowerCase() === 'default') {
+      setSongStatus('Default is the blank template.');
       return;
     }
     const list = loadLibrary();
@@ -767,6 +828,7 @@
       setSongStatus(name + ' is not in the library.');
       return;
     }
+    if (await askDialog('delete-dialog') !== 'ok') return;
     writeLibrary(list.filter(item => item.name !== name));
     syncLibrarySelect();
     setSongStatus('Removed ' + name + ' from the library.');
@@ -781,15 +843,17 @@
 
   function importSongFile(file) {
     if (!file) return;
-    file.text().then(text => {
+    file.text().then(async text => {
       const payload = parseSongText(text);
       if (!payload) {
         setSongStatus('That song file was not recognized.');
         return;
       }
+      if (!(await leaveSong())) return;
       adoptState(hydrateFromRaw(payload));
-      ensureSongName();
+      loadedFrom = ensureSongName();
       upsertLibrary(songPayload());
+      markClean();
       syncLibrarySelect();
       setSongStatus('Imported ' + state.songName + '.');
     }).catch(() => {
@@ -1591,12 +1655,8 @@
     save();
     const tab = document.querySelector('[data-view].is-selected');
     showView(tab ? tab.dataset.view : 'drums');
+    markClean();
     syncLibrarySelect();
-  }
-
-  function resetAll() {
-    adoptState(freshState());
-    setSongStatus('');
   }
 
   function button(className, attrs, text) {
@@ -2214,6 +2274,9 @@
     applySeqShare();
     setRecUi();
     syncSongNameInput();
+    const stored = loadLibrary().find(item => item.name === cleanSongName(state.songName));
+    snapshot = JSON.stringify(stored ? stored.song : payloadOf(freshState()));
+    loadedFrom = stored ? stored.name : DEFAULT_SONG;
     syncLibrarySelect();
     showView('drums');
     const encoded = new URLSearchParams(window.location.search).get(SONG_ID);
@@ -2226,8 +2289,20 @@
       state.songName = String(event.target.value).slice(0, SONG_NAME_MAX);
       save();
     });
-    document.getElementById('song-library').addEventListener('change', event => {
-      if (event.target.value) loadFromLibrary(event.target.value);
+    document.getElementById('song-library').addEventListener('change', async event => {
+      const select = event.target;
+      const next = select.value;
+      select.value = loadedFrom;
+      select.blur();
+      if (!(await leaveSong())) return;
+      if (next === DEFAULT_SONG) loadDefault();
+      else loadFromLibrary(next);
+    });
+    ['leave-dialog', 'delete-dialog'].forEach(id => {
+      const dialog = document.getElementById(id);
+      dialog.addEventListener('click', event => {
+        if (event.target === dialog) dialog.close('cancel');
+      });
     });
     document.getElementById('save-song').addEventListener('click', saveToLibrary);
     document.getElementById('delete-song').addEventListener('click', deleteFromLibrary);
@@ -2253,7 +2328,6 @@
       }
       armRecord();
     });
-    document.getElementById('reset-button').addEventListener('click', resetAll);
     bpm.addEventListener('dblclick', () => {
       state.bpm = 140;
       bpm.value = '140';
