@@ -23,6 +23,17 @@ User-facing documentation lives in [README.md](README.md).
 
 ---
 
+# Commit style
+Subject, short, no longer than 50 characters.
+- Must be present tense
+- Written in the imperative
+- First letter is not capitalized
+- Does not end with a '.'
+
+Body, bullet points, follow style of Subject.
+
+---
+
 # Ponytail, lazy senior dev mode
 
 You are a lazy senior developer. Lazy means efficient, not careless. The best code is the code never written.
