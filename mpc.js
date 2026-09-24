@@ -226,6 +226,12 @@
     return notes.filter(note => note !== hit);
   }
 
+  function moveNote(notes, fromStep, fromPitch, toStep, toPitch, ticksMax) {
+    const hit = noteAt(notes, fromStep, fromPitch);
+    if (!hit) return notes;
+    return placeNote(notes.filter(note => note !== hit), toStep, toPitch, hit.length, ticksMax);
+  }
+
   function validNote(note, ticksMax) {
     const cap = ticksMax || TICKS;
     return !!note
@@ -540,6 +546,10 @@
     if (!noteAt(notes, 4, 60) || !noteAt(notes, 9, 60) || noteAt(notes, 10, 60)) {
       throw new Error('MPC note stretch failed');
     }
+    notes = moveNote(placeNote([], 2, 60, 3), 2, 60, 8, 64);
+    if (!noteAt(notes, 8, 64) || !noteAt(notes, 10, 64) || noteAt(notes, 2, 60) || notes[0].length !== 3) {
+      throw new Error('MPC note move failed');
+    }
     const migrated = asTickNote({ step: 2, length: 1, pitch: 60 }, true);
     if (!migrated || migrated.step !== 4 || migrated.length !== 2) throw new Error('MPC 16th-to-tick migrate failed');
     if (!inScale(60, 0, 'major') || inScale(61, 0, 'major') || !inScale(61, 0, 'chromatic')) {
@@ -641,6 +651,8 @@
   let stepIndex = 0;
   let playhead = -1;
   let drag = null;
+  let seqFolded = false;
+  let lastEditView = 'drums';
   let tlDrag = null;
   let patternPage = 0;
   const strips = new Map();
@@ -1037,6 +1049,30 @@
     split.setAttribute('aria-valuemin', '18');
     split.setAttribute('aria-valuemax', '70');
     split.setAttribute('aria-valuenow', String(Math.round(share * 100)));
+  }
+
+  function applySeqFold() {
+    const mpc = document.querySelector('.mpc');
+    mpc.classList.toggle('is-seq-folded', seqFolded);
+    const btn = document.getElementById('seq-fold');
+    btn.setAttribute('aria-expanded', seqFolded ? 'false' : 'true');
+    btn.setAttribute('aria-label', seqFolded ? 'Unfold sequencer' : 'Fold sequencer');
+    const icon = btn.querySelector('i');
+    if (icon) icon.className = seqFolded ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down';
+  }
+
+  function syncKeyScale() {
+    const root = document.querySelector('[data-lock="root"]');
+    const mode = document.querySelector('[data-lock="mode"]');
+    if (root) root.value = String(state.root);
+    if (mode) mode.value = state.mode;
+  }
+
+  function setMainMenuOpen(open) {
+    const menu = document.getElementById('main-menu');
+    const btn = document.getElementById('main-menu-button');
+    menu.hidden = !open;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
 
   function patternColor(id) {
@@ -1454,10 +1490,10 @@
       const want = Math.floor(Math.floor(gridHead / TICKS) / PAGE_BARS);
       if (want !== patternPage) {
         patternPage = want;
-        const tab = document.querySelector('[data-view].is-selected');
-        const name = tab ? tab.dataset.view : 'drums';
+        const name = currentViewName();
         if (name === 'drums') renderDrums();
         else if (name === 'piano') renderPiano();
+        else if (name === 'mixer') renderMixer();
         renderBank();
         return;
       }
@@ -1650,11 +1686,11 @@
     const bpm = document.getElementById('bpm');
     if (bpm) bpm.value = String(state.bpm);
     syncSongNameInput();
+    syncKeyScale();
     syncKit();
     applySeqShare();
     save();
-    const tab = document.querySelector('[data-view].is-selected');
-    showView(tab ? tab.dataset.view : 'drums');
+    showView(currentViewName());
     markClean();
     syncLibrarySelect();
   }
@@ -1688,8 +1724,7 @@
     }
     if (same) return;
     patternPage = 0;
-    const tab = document.querySelector('[data-view].is-selected');
-    showView(tab ? tab.dataset.view : 'drums');
+    showView(currentViewName());
   }
 
   function addPattern() {
@@ -1714,8 +1749,7 @@
     const index = state.patterns.findIndex(item => item.id === pattern.id);
     state.patterns[index] = next;
     save();
-    const tab = document.querySelector('[data-view].is-selected');
-    showView(tab ? tab.dataset.view : 'drums');
+    showView(currentViewName());
   }
 
   function deleteCurrentPattern() {
@@ -1725,8 +1759,7 @@
     state.arrangement = state.arrangement.filter(clip => clip.patternId !== id);
     state.patternId = state.patterns[0].id;
     save();
-    const tab = document.querySelector('[data-view].is-selected');
-    showView(tab ? tab.dataset.view : 'drums');
+    showView(currentViewName());
   }
 
   function renderBank() {
@@ -1855,8 +1888,7 @@
     pattern.drums = emptyDrums(pattern.bars);
     Object.keys(pattern.notes).forEach(id => { pattern.notes[id] = []; });
     save();
-    const tab = document.querySelector('[data-view].is-selected');
-    showView(tab ? tab.dataset.view : 'drums');
+    showView(currentViewName());
   }
 
   function handleBarMeter(event) {
@@ -1877,24 +1909,51 @@
       if (page.disabled) return true;
       patternPage += Number(page.dataset.page);
       viewBars();
-      const tab = document.querySelector('[data-view].is-selected');
-      showView(tab ? tab.dataset.view : 'drums');
+      showView(currentViewName());
       return true;
     }
     const slot = event.target.closest('[data-bar-page]');
     if (slot) {
       patternPage = Number(slot.dataset.barPage);
       viewBars();
-      const tab = document.querySelector('[data-view].is-selected');
-      showView(tab ? tab.dataset.view : 'drums');
+      showView(currentViewName());
+      return true;
+    }
+    const viewBtn = event.target.closest('button[data-view]');
+    if (viewBtn) {
+      showView(viewBtn.dataset.view);
       return true;
     }
     return false;
   }
 
-  function renderBarMeter() {
+  function currentViewName() {
+    const panel = document.querySelector('.mpc-view:not([hidden])');
+    return (panel && panel.dataset.viewPanel) || 'drums';
+  }
+
+  function renderBarMeter(view) {
     const wrap = document.createElement('div');
     wrap.className = 'bar-meter';
+    const views = document.createElement('div');
+    views.className = 'bar-meter-views';
+    const kit = document.createElement('select');
+    kit.className = 'kit-view' + (view === 'drums' ? ' is-selected' : '');
+    kit.dataset.view = 'drums';
+    kit.setAttribute('aria-label', 'Drum kit');
+    ['808', '909'].forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      kit.append(opt);
+    });
+    kit.value = state.kit;
+    const piano = button('text-button' + (view === 'piano' ? ' is-selected' : ''), {
+      'data-view': 'piano',
+      role: 'tab',
+      'aria-selected': view === 'piano' ? 'true' : 'false'
+    }, 'Piano');
+    views.append(kit, piano);
     const pattern = currentPattern();
     const pages = pageCount();
     const prev = iconButton('icon-button', { 'data-page': '-1', 'aria-label': 'Previous bars', title: 'Previous bars' }, 'fa-chevron-left');
@@ -1923,7 +1982,7 @@
     main.className = 'bar-meter-main';
     main.append(prev, slots, next, len, half, grow);
     const clear = iconButton('icon-button', { 'data-clear-pattern': '1', 'aria-label': 'Clear pattern', title: 'Clear pattern' }, 'fa-eraser');
-    wrap.append(main, clear);
+    wrap.append(views, main, clear);
     return wrap;
   }
 
@@ -1968,7 +2027,7 @@
       grid.append(row);
     });
     drums.append(rack, grid);
-    root.replaceChildren(renderBarMeter(), drums);
+    root.replaceChildren(renderBarMeter('drums'), drums);
     paintPlayhead();
   }
 
@@ -2006,37 +2065,7 @@
       'aria-pressed': state.grid === 32 ? 'true' : 'false',
       'aria-label': '32-step grid'
     }, 'x2');
-    const keyLock = document.createElement('label');
-    keyLock.className = 'lock-label';
-    keyLock.textContent = 'Key';
-    const keySel = document.createElement('select');
-    keySel.className = 'lock-select';
-    keySel.dataset.lock = 'root';
-    keySel.setAttribute('aria-label', 'Root');
-    NOTE_NAMES.forEach((name, i) => {
-      const opt = document.createElement('option');
-      opt.value = String(i);
-      opt.textContent = name;
-      keySel.append(opt);
-    });
-    keySel.value = String(state.root);
-    keyLock.append(keySel);
-    const modeLock = document.createElement('label');
-    modeLock.className = 'lock-label';
-    modeLock.textContent = 'Scale';
-    const modeSel = document.createElement('select');
-    modeSel.className = 'lock-select';
-    modeSel.dataset.lock = 'mode';
-    modeSel.setAttribute('aria-label', 'Scale');
-    [['chromatic', 'Chromatic'], ['major', 'Major'], ['minor', 'Minor']].forEach(row => {
-      const opt = document.createElement('option');
-      opt.value = row[0];
-      opt.textContent = row[1];
-      modeSel.append(opt);
-    });
-    modeSel.value = state.mode;
-    modeLock.append(modeSel);
-    bar.append(chips, remove, x2, keyLock, modeLock);
+    bar.append(chips, remove, x2);
 
     const wrap = document.createElement('div');
     wrap.className = 'roll-wrap';
@@ -2086,7 +2115,7 @@
       if (!inScale(midi, state.root, state.mode)) continue;
       keys.append(button('key' + (isBlack(midi) ? ' is-black' : ''), { 'data-key': String(midi) }, NOTE_NAMES[midi % 12]));
     }
-    root.replaceChildren(bar, renderBarMeter(), wrap, keys);
+    root.replaceChildren(bar, renderBarMeter('piano'), wrap, keys);
     paintPlayhead();
   }
 
@@ -2195,7 +2224,7 @@
     PADS.forEach(pad => channels.append(addStrip(pad.id, pad.name, pad.color, pad.ink, false)));
     state.tracks.forEach(track => channels.append(addStrip(track.id, track.name, trackColor(track.type), '#1c140c', false)));
     row.append(channels, addStrip('master', 'Master', '#f4efe6', '#1c1a17', true));
-    root.replaceChildren(row);
+    root.replaceChildren(renderBarMeter('mixer'), row);
     tickMeters();
   }
 
@@ -2203,11 +2232,14 @@
     stopMeters();
     const tip = document.querySelector('.mix-tip');
     if (tip) tip.hidden = true;
+    if (name === 'drums' || name === 'piano') lastEditView = name;
     document.querySelectorAll('[data-view]').forEach(tab => {
       const on = tab.dataset.view === name;
       tab.classList.toggle('is-selected', on);
-      tab.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (tab.getAttribute('role') === 'tab') tab.setAttribute('aria-selected', on ? 'true' : 'false');
     });
+    const mixBtn = document.getElementById('mixer-button');
+    if (mixBtn) mixBtn.setAttribute('aria-pressed', name === 'mixer' ? 'true' : 'false');
     document.querySelectorAll('[data-view-panel]').forEach(panel => {
       panel.hidden = panel.dataset.viewPanel !== name;
     });
@@ -2215,19 +2247,13 @@
     if (name === 'piano') renderPiano();
     if (name === 'mixer') renderMixer();
     document.querySelector('.mpc').classList.toggle('is-mixer', name === 'mixer');
-    if (name !== 'mixer') {
-      renderBank();
-      renderTimeline();
-    }
+    renderBank();
+    renderTimeline();
     syncPlayMode();
   }
 
   function syncKit() {
-    document.querySelectorAll('[data-kit]').forEach(tab => {
-      const on = tab.dataset.kit === state.kit;
-      tab.classList.toggle('is-selected', on);
-      tab.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
+    document.querySelectorAll('.kit-view').forEach(sel => { sel.value = state.kit; });
   }
 
   function addTrack(type) {
@@ -2271,7 +2297,10 @@
     const bpm = document.getElementById('bpm');
     bpm.value = String(state.bpm);
     syncKit();
+    syncKeyScale();
+    seqFolded = window.matchMedia('(max-width: 760px)').matches;
     applySeqShare();
+    applySeqFold();
     setRecUi();
     syncSongNameInput();
     const stored = loadLibrary().find(item => item.name === cleanSongName(state.songName));
@@ -2316,6 +2345,16 @@
     });
     document.getElementById('export-json').addEventListener('click', exportSongJson);
     document.getElementById('export-song').addEventListener('click', exportSong);
+    const menuBtn = document.getElementById('main-menu-button');
+    const menuWrap = document.querySelector('.main-menu-wrap');
+    menuWrap.addEventListener('pointerdown', event => event.stopPropagation());
+    menuBtn.addEventListener('click', () => setMainMenuOpen(document.getElementById('main-menu').hidden));
+    document.addEventListener('pointerdown', () => {
+      if (!document.getElementById('main-menu').hidden) setMainMenuOpen(false);
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') setMainMenuOpen(false);
+    });
     document.getElementById('play-button').addEventListener('click', () => {
       if (playing) stopTransport();
       else startTransport();
@@ -2345,20 +2384,38 @@
       bpm.value = String(state.bpm);
       save();
     });
-    document.querySelector('.kit-switch').addEventListener('click', event => {
-      const tab = event.target.closest('[data-kit]');
-      if (!tab) return;
-      state.kit = tab.dataset.kit;
-      syncKit();
-      save();
+    document.getElementById('mixer-button').addEventListener('click', () => {
+      showView(currentViewName() === 'mixer' ? lastEditView : 'mixer');
     });
-    document.querySelector('.view-switch').addEventListener('click', event => {
-      const tab = event.target.closest('[data-view]');
-      if (tab) showView(tab.dataset.view);
+    document.querySelector('.mpc').addEventListener('mousedown', event => {
+      const kit = event.target.closest('.kit-view');
+      if (kit && document.getElementById('view-drums').hidden) showView('drums');
+    });
+    document.querySelector('.mpc').addEventListener('change', event => {
+      const kit = event.target.closest('.kit-view');
+      if (!kit) return;
+      state.kit = kit.value === '909' ? '909' : '808';
+      save();
+      syncKit();
+    });
+    document.querySelector('.transport').addEventListener('change', event => {
+      const sel = event.target.closest('[data-lock]');
+      if (!sel) return;
+      if (sel.dataset.lock === 'root') state.root = clamp(sel.value, 0, 11, state.root) | 0;
+      if (sel.dataset.lock === 'mode') {
+        state.mode = sel.value === 'major' || sel.value === 'minor' ? sel.value : 'chromatic';
+      }
+      save();
+      if (!document.getElementById('view-piano').hidden) renderPiano();
     });
     const split = document.getElementById('seq-split');
+    document.getElementById('seq-fold').addEventListener('click', event => {
+      event.stopPropagation();
+      seqFolded = !seqFolded;
+      applySeqFold();
+    });
     split.addEventListener('pointerdown', event => {
-      if (event.button) return;
+      if (event.button || seqFolded || event.target.closest('.seq-fold')) return;
       const view = document.querySelector('.mpc-view:not([hidden])');
       const timeline = document.getElementById('timeline');
       const total = view.offsetHeight + timeline.offsetHeight;
@@ -2381,7 +2438,7 @@
       split.addEventListener('pointercancel', onUp);
     });
     split.addEventListener('keydown', event => {
-      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      if (seqFolded || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
       event.preventDefault();
       state.seqShare = clamp(state.seqShare + (event.key === 'ArrowUp' ? 0.04 : -0.04), 0.18, 0.7, state.seqShare);
       applySeqShare();
@@ -2573,16 +2630,6 @@
         renderPiano();
       }
     });
-    pianoView.addEventListener('change', event => {
-      const sel = event.target.closest('[data-lock]');
-      if (!sel) return;
-      if (sel.dataset.lock === 'root') state.root = clamp(sel.value, 0, 11, state.root) | 0;
-      if (sel.dataset.lock === 'mode') {
-        state.mode = sel.value === 'major' || sel.value === 'minor' ? sel.value : 'chromatic';
-      }
-      save();
-      renderPiano();
-    });
     pianoView.addEventListener('pointerdown', event => {
       const key = event.target.closest('[data-key]');
       if (key) {
@@ -2601,11 +2648,21 @@
       const pitch = Number(cell.dataset.pitch);
       const hit = noteAt(trackNotes(track), step, pitch, span);
       if (hit) {
-        drag = { pitch, origin: hit.step, length: hit.length, pointerId: event.pointerId, erase: true };
+        drag = {
+          kind: 'move',
+          pitch: hit.pitch,
+          origin: hit.step,
+          length: hit.length,
+          downStep: step,
+          downPitch: pitch,
+          origStep: hit.step,
+          pointerId: event.pointerId,
+          erase: true
+        };
         pianoView.setPointerCapture(event.pointerId);
         return;
       }
-      drag = { pitch, origin: step, length: span, pointerId: event.pointerId, erase: false };
+      drag = { kind: 'draw', pitch, origin: step, length: span, pointerId: event.pointerId, erase: false };
       currentPattern().notes[track.id] = placeNote(trackNotes(track), step, pitch, span, patternTicks());
       paintRoll(track);
       audition(pitch);
@@ -2619,12 +2676,27 @@
       const pitch = Number(cell.dataset.pitch);
       const step = Number(cell.dataset.step);
       const span = Number(cell.dataset.span || gridSpan());
+      const track = selectedTrack();
+      if (!track) return;
+      if (drag.kind === 'move') {
+        if (drag.erase && step === drag.downStep && pitch === drag.downPitch) return;
+        drag.erase = false;
+        const toStep = Math.max(0, drag.origStep + (step - drag.downStep));
+        if (toStep === drag.origin && pitch === drag.pitch) return;
+        const next = moveNote(trackNotes(track), drag.origin, drag.pitch, toStep, pitch, patternTicks());
+        const moved = next[next.length - 1];
+        if (!moved) return;
+        drag.origin = moved.step;
+        drag.pitch = moved.pitch;
+        currentPattern().notes[track.id] = next;
+        paintRoll(track);
+        return;
+      }
       if (pitch !== drag.pitch || step < drag.origin) return;
       const length = step - drag.origin + span;
       if (length === drag.length) return;
       drag.length = length;
       drag.erase = false;
-      const track = selectedTrack();
       currentPattern().notes[track.id] = placeNote(trackNotes(track), drag.origin, pitch, length, patternTicks());
       paintRoll(track);
     });
@@ -2683,6 +2755,7 @@
     });
 
     document.getElementById('view-mixer').addEventListener('click', event => {
+      if (handleBarMeter(event)) return;
       const mute = event.target.closest('[data-mute]');
       const solo = event.target.closest('[data-solo]');
       if (!mute && !solo) return;
