@@ -87,9 +87,12 @@
   font-size: 0.78rem;
   letter-spacing: 0.04em;
 }
-.bar-meter [data-clear-pattern] {
+.bar-meter-end {
   grid-column: 3;
   justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 .pattern-row .chip {
   min-width: 2.1rem;
@@ -218,7 +221,7 @@
     justify-content: flex-start;
   }
   .bar-meter-main > * { flex-shrink: 0; }
-  .bar-meter [data-clear-pattern] {
+  .bar-meter-end {
     grid-column: auto;
     margin-left: auto;
   }

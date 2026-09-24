@@ -172,6 +172,16 @@ export function addPattern() {
   selectPattern(id);
 }
 
+export function copyPattern() {
+  const id = 'p' + rt.state.nextPattern;
+  rt.state.nextPattern += 1;
+  const clone = structuredClone(currentPattern());
+  clone.id = id;
+  clone.name = nextPatternName(rt.state.patterns);
+  rt.state.patterns.push(clone);
+  selectPattern(id);
+}
+
 export function resizeCurrentPattern(bars) {
   const pattern = currentPattern();
   const next = resizePattern(pattern, bars);
@@ -205,10 +215,11 @@ export function renderBank() {
     chip.style.setProperty('--pad', patternColor(pattern.id));
     row.append(chip);
   });
+  const copy = iconButton('icon-button', { 'data-pattern-copy': '1', 'aria-label': 'Copy pattern', title: 'Copy pattern' }, 'fa-copy');
   const add = iconButton('icon-button', { 'data-pattern-add': '1', 'aria-label': 'Add pattern', title: 'Add pattern' }, 'fa-plus');
   const mid = document.createElement('div');
   mid.className = 'pattern-mid';
-  mid.append(row, add);
+  mid.append(row, copy, add);
   const del = iconButton('icon-button', { 'data-pattern-del': '1', 'aria-label': 'Delete pattern', title: 'Delete pattern' }, 'fa-trash');
   del.disabled = rt.state.patterns.length < 2;
   del.classList.add('pattern-reset');
@@ -412,7 +423,17 @@ export function renderBarMeter(view) {
   main.className = 'bar-meter-main';
   main.append(prev, slots, next, len, half, grow);
   const clear = iconButton('icon-button', { 'data-clear-pattern': '1', 'aria-label': 'Clear pattern', title: 'Clear pattern' }, 'fa-eraser');
-  wrap.append(views, main, clear);
+  const end = document.createElement('div');
+  end.className = 'bar-meter-end';
+  if (view === 'piano') {
+    end.append(button('text-button', {
+      'data-grid': '1',
+      'aria-pressed': rt.state.grid === 32 ? 'true' : 'false',
+      'aria-label': '32-step grid'
+    }, 'x2'));
+  }
+  end.append(clear);
+  wrap.append(views, main, end);
   return wrap;
 }
 
@@ -490,12 +511,7 @@ export function renderPiano() {
   });
   const remove = button('text-button', { 'data-remove': '1' }, 'Remove');
   remove.disabled = !rt.state.selectedTrack;
-  const x2 = button('text-button', {
-    'data-grid': '1',
-    'aria-pressed': rt.state.grid === 32 ? 'true' : 'false',
-    'aria-label': '32-step grid'
-  }, 'x2');
-  bar.append(chips, remove, x2);
+  bar.append(chips, remove);
 
   const wrap = document.createElement('div');
   wrap.className = 'roll-wrap';

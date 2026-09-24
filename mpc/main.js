@@ -14,7 +14,7 @@ import {
 } from './audio.js';
 import {
   syncKit, syncKeyScale, applySeqShare, applySeqFold, setRecUi, setMainMenuOpen,
-  showView, currentViewName, renderPiano, addPattern, resizeCurrentPattern, deleteCurrentPattern,
+  showView, currentViewName, renderPiano, addPattern, copyPattern, resizeCurrentPattern, deleteCurrentPattern,
   selectPattern, startRename, renderTimeline, handleBarMeter, addTrack, removeSelected,
   paintRoll, loopEndBar, syncPlayMode, paintKnob, showMixTip
 } from './ui.js';
@@ -185,6 +185,7 @@ export function init() {
   });
   document.getElementById('pattern-bank').addEventListener('click', event => {
     if (event.target.closest('.pattern-name')) return;
+    if (event.target.closest('[data-pattern-copy]')) { copyPattern(); return; }
     if (event.target.closest('[data-pattern-add]')) { addPattern(); return; }
     if (event.target.closest('[data-pattern-grow]')) { resizeCurrentPattern(currentPattern().bars * 2); return; }
     if (event.target.closest('[data-pattern-half]')) { resizeCurrentPattern(currentPattern().bars / 2); return; }

@@ -202,6 +202,7 @@ body {
   background: var(--brown-light);
   border-color: var(--brown-light);
 }
+#mixer-button i { transform: rotate(90deg); }
 .rec-button i {
   color: #c45c4a;
   font-size: 0.55em;
