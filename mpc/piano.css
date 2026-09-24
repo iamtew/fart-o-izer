@@ -1,0 +1,47 @@
+.piano-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+.track-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+.roll-wrap { flex: 0 1 auto; min-height: 0; max-height: 100%; overflow: auto; }
+.roll {
+  display: grid;
+  grid-template-columns: 3.2rem repeat(var(--cols, 16), minmax(1.35rem, 1fr));
+  gap: 2px;
+  min-width: 36rem;
+  touch-action: none;
+  user-select: none;
+}
+.note-name {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-align: left;
+  touch-action: none;
+  user-select: none;
+}
+.note-name.is-black { color: var(--brown-light); }
+.cell { height: 1.15rem; background: #221f1b; }
+.cell.is-black:not(.is-on) { background: #161411; }
+.empty-note { margin: 0; color: var(--muted); }
+
+.keys { display: flex; gap: 0.3rem; touch-action: none; }
+.key {
+  flex: 1;
+  min-height: 3.1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  color: var(--ink);
+  background: var(--panel-light);
+  touch-action: none;
+  user-select: none;
+}
+.key.is-black { color: var(--muted); background: #2a261f; }

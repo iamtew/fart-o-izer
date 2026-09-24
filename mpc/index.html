@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#141210">
+  <meta name="description" content="Multi Poop Composer — synthesized drums, fart and queef piano roll, mixer">
+  <title>MPC — Multi Poop Composer</title>
+  <link rel="stylesheet" href="../fontawesome/css/fontawesome.min.css">
+  <link rel="stylesheet" href="../fontawesome/css/solid.min.css">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="chrome.css">
+  <link rel="stylesheet" href="sequencer.css">
+  <link rel="stylesheet" href="drums.css">
+  <link rel="stylesheet" href="piano.css">
+  <link rel="stylesheet" href="mixer.css">
+  <script type="module" src="main.js"></script>
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="manifest" href="/site.webmanifest">
+</head>
+<body>
+  <main class="mpc">
+    <header class="mpc-bar">
+      <div class="main-menu-wrap">
+        <button class="icon-button" id="main-menu-button" type="button" aria-expanded="false" aria-controls="main-menu" aria-label="Main menu">
+          <i class="fa-solid fa-bars" aria-hidden="true"></i>
+        </button>
+        <div class="main-menu" id="main-menu" hidden>
+          <label class="song-name-label">Song
+            <input id="song-name" type="text" maxlength="40" placeholder="Song name" autocomplete="off" spellcheck="false">
+          </label>
+          <label class="song-name-label">Library
+            <select id="song-library" aria-label="Saved songs">
+              <option value="__default__">Default</option>
+            </select>
+          </label>
+          <button class="reset-button" id="save-song" type="button" aria-label="Save song" title="Save to this browser">
+            <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save
+          </button>
+          <button class="reset-button" id="delete-song" type="button" aria-label="Delete saved song" title="Remove from library">
+            <i class="fa-solid fa-trash-can" aria-hidden="true"></i> Delete
+          </button>
+          <button class="reset-button" id="import-song" type="button" aria-label="Import song" title="Import JSON song file">
+            <i class="fa-solid fa-file-import" aria-hidden="true"></i> Import
+          </button>
+          <input id="import-song-file" type="file" accept=".json,.txt,application/json,text/plain" hidden>
+          <button class="reset-button" id="export-json" type="button" aria-label="Export JSON" title="Export song as JSON">
+            <i class="fa-solid fa-file-export" aria-hidden="true"></i> Export JSON
+          </button>
+          <button class="reset-button" id="export-song" type="button" aria-label="Export WAV" title="Export song as WAV">
+            <i class="fa-solid fa-download" aria-hidden="true"></i> Export WAV
+          </button>
+          <span class="song-status" id="song-status" aria-live="polite"></span>
+          <a class="main-menu-quit" href="/">Quit</a>
+        </div>
+      </div>
+      <div class="mpc-brand">
+        <h1>
+          <span class="mpc-title-full">Multi Poop <span>Composer</span></span>
+          <span class="mpc-title-short">MPC</span>
+        </h1>
+      </div>
+      <div class="transport" aria-label="Transport">
+        <button class="play-button" id="play-button" type="button" aria-pressed="false" aria-label="Play">
+          <i class="fa-solid fa-play" aria-hidden="true"></i>
+        </button>
+        <button class="play-button rec-button" id="rec-button" type="button" aria-pressed="false" aria-label="Record">
+          <i class="fa-solid fa-circle" aria-hidden="true"></i>
+        </button>
+        <div class="mode-switch" role="group" aria-label="Play mode">
+          <button type="button" data-mode="pattern" aria-pressed="true" title="Pattern" aria-label="Pattern">
+            <i class="fa-solid fa-repeat" aria-hidden="true"></i>
+          </button>
+          <button type="button" data-mode="song" aria-pressed="false" title="Song" aria-label="Song" disabled>
+            <i class="fa-solid fa-bars-staggered" aria-hidden="true"></i>
+          </button>
+        </div>
+        <button class="play-button" id="mixer-button" type="button" aria-pressed="false" aria-label="Mixer" title="Mixer">
+          <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+        </button>
+        <label class="bpm-label">BPM
+          <input id="bpm" type="number" min="40" max="240" step="1" value="140" inputmode="numeric">
+        </label>
+        <label class="lock-label">Key
+          <select class="lock-select" data-lock="root" aria-label="Root">
+            <option value="0">C</option>
+            <option value="1">C#</option>
+            <option value="2">D</option>
+            <option value="3">D#</option>
+            <option value="4">E</option>
+            <option value="5">F</option>
+            <option value="6">F#</option>
+            <option value="7">G</option>
+            <option value="8">G#</option>
+            <option value="9">A</option>
+            <option value="10">A#</option>
+            <option value="11">B</option>
+          </select>
+        </label>
+        <label class="lock-label">Scale
+          <select class="lock-select" data-lock="mode" aria-label="Scale">
+            <option value="chromatic">Chromatic</option>
+            <option value="major">Major</option>
+            <option value="minor">Minor</option>
+          </select>
+        </label>
+      </div>
+    </header>
+    <section class="mpc-view" id="view-drums" data-view-panel="drums" aria-label="Drum machine"></section>
+    <section class="mpc-view" id="view-piano" data-view-panel="piano" aria-label="Piano roll" hidden></section>
+    <section class="mpc-view" id="view-mixer" data-view-panel="mixer" aria-label="Mixer" hidden></section>
+    <nav class="pattern-bank" id="pattern-bank" aria-label="Patterns"></nav>
+    <div class="seq-split" id="seq-split" role="separator" aria-orientation="horizontal" aria-label="Resize sequencer" tabindex="0">
+      <button class="seq-fold" id="seq-fold" type="button" aria-expanded="true" aria-label="Fold sequencer">
+        <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+      </button>
+    </div>
+    <section class="timeline" id="timeline" aria-label="Arrangement"></section>
+  </main>
+  <dialog class="song-dialog" id="leave-dialog" aria-labelledby="leave-dialog-copy">
+    <form method="dialog">
+      <p id="leave-dialog-copy">This song has unsaved changes.</p>
+      <div class="song-dialog-actions">
+        <button class="reset-button" value="save">Save</button>
+        <button class="reset-button" value="discard">Don't save</button>
+        <button class="reset-button" value="cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog class="song-dialog" id="delete-dialog" aria-labelledby="delete-dialog-copy">
+    <form method="dialog">
+      <p id="delete-dialog-copy">Remove this song from the library?</p>
+      <div class="song-dialog-actions">
+        <button class="reset-button" value="ok">Remove</button>
+        <button class="reset-button" value="cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
