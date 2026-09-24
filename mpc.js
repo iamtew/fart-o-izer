@@ -1,8 +1,9 @@
 /*
  * Multi Poop Composer.
  *
- * A 16-step loop on its own page: synthesized 808/909 drums, chromatic Fart and
- * Queef tracks, and a mixer strip per pad and per track. The lab's hold-to-play
+ * A one-bar loop on its own page: synthesized 808/909 drums (16 sixteenths),
+ * Fart and Queef piano roll (16 or 32 ticks), and a mixer strip per pad and
+ * per track. The lab's hold-to-play
  * factories stay put — they are monophonic and start at "now", so this file
  * schedules its own voices.
  *
@@ -12,8 +13,11 @@
   'use strict';
 
   const STEPS = 16;
+  const TICKS = 32;
   const NOTE_LO = 48;
   const NOTE_HI = 71;
+  const MAJOR = [0, 2, 4, 5, 7, 9, 11];
+  const MINOR = [0, 2, 3, 5, 7, 8, 10];
   const STORAGE_KEY = 'fart-o-izer-mpc';
   const LOOKAHEAD_MS = 25;
   const HORIZON = 0.1;
@@ -45,6 +49,16 @@
 
   function stepSeconds(bpm) {
     return 60 / bpm / 4;
+  }
+
+  function tickSeconds(bpm) {
+    return 60 / bpm / 8;
+  }
+
+  function inScale(midi, root, mode) {
+    if (mode === 'chromatic') return true;
+    const pc = ((midi % 12) - root + 12) % 12;
+    return (mode === 'minor' ? MINOR : MAJOR).includes(pc);
   }
 
   function noteName(midi) {
@@ -184,29 +198,40 @@
     return !anyChannelSolo(mixMap) || !!mix.solo;
   }
 
-  function noteAt(notes, step, pitch) {
-    return notes.find(note => note.pitch === pitch && step >= note.step && step < note.step + note.length) || null;
+  function noteAt(notes, step, pitch, span) {
+    const width = span || 1;
+    return notes.find(note => note.pitch === pitch && note.step < step + width && step < note.step + note.length) || null;
   }
 
   function placeNote(notes, step, pitch, length) {
-    const len = Math.max(1, Math.min(length, STEPS - step));
+    const len = Math.max(1, Math.min(length, TICKS - step));
     const end = step + len;
     const next = notes.filter(note => note.pitch !== pitch || note.step + note.length <= step || note.step >= end);
     next.push({ step, pitch, length: len });
     return next;
   }
 
-  function removeNoteAt(notes, step, pitch) {
-    const hit = noteAt(notes, step, pitch);
+  function removeNoteAt(notes, step, pitch, span) {
+    const hit = noteAt(notes, step, pitch, span);
     if (!hit) return notes;
     return notes.filter(note => note !== hit);
   }
 
   function validNote(note) {
     return !!note
-      && Number.isInteger(note.step) && note.step >= 0 && note.step < STEPS
-      && Number.isInteger(note.length) && note.length >= 1 && note.step + note.length <= STEPS
+      && Number.isInteger(note.step) && note.step >= 0 && note.step < TICKS
+      && Number.isInteger(note.length) && note.length >= 1 && note.step + note.length <= TICKS
       && Number.isInteger(note.pitch) && note.pitch >= NOTE_LO && note.pitch <= NOTE_HI;
+  }
+
+  function asTickNote(note, from16) {
+    if (!note) return null;
+    const next = {
+      step: from16 ? note.step * 2 : note.step,
+      length: from16 ? note.length * 2 : note.length,
+      pitch: note.pitch
+    };
+    return validNote(next) ? next : null;
   }
 
   function freshState() {
@@ -216,7 +241,10 @@
       drums[pad.id] = Array(STEPS).fill(false);
       mix[pad.id] = defaultMix();
     });
-    return { kit: '808', bpm: 140, drums, tracks: [], mix, nextId: 1, selectedTrack: null };
+    return {
+      kit: '808', bpm: 140, drums, tracks: [], mix, nextId: 1, selectedTrack: null,
+      grid: 16, root: 0, mode: 'chromatic', ticks: TICKS
+    };
   }
 
   function loadState() {
@@ -226,6 +254,10 @@
       if (!raw || typeof raw !== 'object') return state;
       if (raw.kit === '909') state.kit = '909';
       state.bpm = clamp(raw.bpm, 40, 240, state.bpm);
+      state.grid = raw.grid === 32 ? 32 : 16;
+      state.root = Number.isInteger(raw.root) && raw.root >= 0 && raw.root <= 11 ? raw.root : 0;
+      state.mode = raw.mode === 'major' || raw.mode === 'minor' ? raw.mode : 'chromatic';
+      const from16 = raw.ticks !== TICKS;
       PADS.forEach(pad => {
         const row = raw.drums && raw.drums[pad.id];
         if (Array.isArray(row) && row.length === STEPS) state.drums[pad.id] = row.map(Boolean);
@@ -239,7 +271,7 @@
             id: track.id,
             type: track.type,
             name: String(track.name || track.type).slice(0, 32),
-            notes: Array.isArray(track.notes) ? track.notes.filter(validNote) : []
+            notes: Array.isArray(track.notes) ? track.notes.map(note => asTickNote(note, from16)).filter(Boolean) : []
           });
           state.mix[track.id] = cleanMix(raw.mix && raw.mix[track.id]);
         });
@@ -256,6 +288,7 @@
 
   function selfCheck() {
     if (stepSeconds(120) !== 0.125) throw new Error('MPC stepSeconds(120) expected 0.125');
+    if (tickSeconds(120) !== 0.0625) throw new Error('MPC tickSeconds(120) expected 0.0625');
     let notes = placeNote([], 2, 60, 3);
     if (!noteAt(notes, 2, 60) || !noteAt(notes, 4, 60) || noteAt(notes, 5, 60)) {
       throw new Error('MPC note paint failed');
@@ -264,6 +297,16 @@
     if (noteAt(notes, 2, 60) || noteAt(notes, 4, 60)) throw new Error('MPC note erase failed');
     notes = placeNote(notes, 0, 60, 1);
     if (!noteAt(notes, 0, 60) || noteAt(notes, 1, 60)) throw new Error('MPC note on/off failed');
+    notes = placeNote([], 4, 60, 2);
+    notes = placeNote(notes, 4, 60, 6);
+    if (!noteAt(notes, 4, 60) || !noteAt(notes, 9, 60) || noteAt(notes, 10, 60)) {
+      throw new Error('MPC note stretch failed');
+    }
+    const migrated = asTickNote({ step: 2, length: 1, pitch: 60 }, true);
+    if (!migrated || migrated.step !== 4 || migrated.length !== 2) throw new Error('MPC 16th-to-tick migrate failed');
+    if (!inScale(60, 0, 'major') || inScale(61, 0, 'major') || !inScale(61, 0, 'chromatic')) {
+      throw new Error('MPC key lock scale failed');
+    }
     const mix = defaultMix();
     MIX_PARAMS.forEach(([param]) => {
       if (!(param in mix)) throw new Error('MPC MIX_PARAMS missing defaultMix key ' + param);
@@ -643,27 +686,47 @@
     else triggerFart(when, dur, freq, dest);
   }
 
-  function scheduleStep(step, when) {
-    const open = state.drums.openhat[step];
-    PADS.forEach(pad => {
-      if (!state.drums[pad.id][step]) return;
-      if (pad.id === 'hat' && open) return;
-      triggerPad(pad.id, when);
+  function audition(midi) {
+    const track = selectedTrack();
+    if (!track) return;
+    const type = track.type;
+    const id = track.id;
+    ensureAudio().then(() => {
+      const strip = strips.get(id);
+      triggerMelodic(type, midi, ctx.currentTime + 0.01, 0.28, strip && strip.input);
     });
-    const durStep = stepSeconds(state.bpm);
+  }
+
+  function gridSpan() {
+    return TICKS / (state.grid === 32 ? 32 : 16);
+  }
+
+  function scheduleTick(tick, when) {
+    if ((tick & 1) === 0) {
+      const step = tick >> 1;
+      const open = state.drums.openhat[step];
+      PADS.forEach(pad => {
+        if (!state.drums[pad.id][step]) return;
+        if (pad.id === 'hat' && open) return;
+        triggerPad(pad.id, when);
+      });
+    }
+    const durTick = tickSeconds(state.bpm);
     state.tracks.forEach(track => {
       const dest = strips.get(track.id);
       if (!dest) return;
       track.notes.forEach(note => {
-        if (note.step !== step) return;
-        triggerMelodic(track.type, note.pitch, when, note.length * durStep, dest.input);
+        if (note.step !== tick) return;
+        triggerMelodic(track.type, note.pitch, when, note.length * durTick, dest.input);
       });
     });
   }
 
   function paintPlayhead() {
     document.querySelectorAll('[data-step]').forEach(cell => {
-      cell.classList.toggle('is-playhead', Number(cell.dataset.step) === playhead);
+      const start = Number(cell.dataset.step);
+      const span = Number(cell.dataset.span || 1);
+      cell.classList.toggle('is-playhead', playhead >= start && playhead < start + span);
     });
   }
 
@@ -671,17 +734,17 @@
     if (nextTime < ctx.currentTime - 0.2) nextTime = ctx.currentTime + 0.05;
     const horizon = ctx.currentTime + HORIZON;
     while (nextTime < horizon) {
-      scheduleStep(stepIndex, nextTime);
+      scheduleTick(stepIndex, nextTime);
       due.push({ step: stepIndex, when: nextTime });
-      nextTime += stepSeconds(state.bpm);
-      stepIndex = (stepIndex + 1) % STEPS;
+      nextTime += tickSeconds(state.bpm);
+      stepIndex = (stepIndex + 1) % TICKS;
     }
     const now = ctx.currentTime + 0.02;
     let head = playhead;
     for (let i = due.length - 1; i >= 0; i -= 1) {
       if (due[i].when <= now) { head = due[i].step; break; }
     }
-    if (due.length > 32) due.splice(0, due.length - 16);
+    if (due.length > 64) due.splice(0, due.length - 32);
     if (head !== playhead) {
       playhead = head;
       paintPlayhead();
@@ -730,6 +793,10 @@
     state.mix = next.mix;
     state.nextId = next.nextId;
     state.selectedTrack = next.selectedTrack;
+    state.grid = next.grid;
+    state.root = next.root;
+    state.mode = next.mode;
+    state.ticks = next.ticks;
     Object.keys(keep).forEach(applyMix);
     document.getElementById('bpm').value = String(state.bpm);
     syncKit();
@@ -771,7 +838,8 @@
         const on = state.drums[pad.id][step];
         const cell = button('step' + (on ? ' is-on' : '') + (step % 4 === 0 ? ' is-beat' : ''), {
           'data-pad': pad.id,
-          'data-step': String(step),
+          'data-step': String(step * 2),
+          'data-span': '2',
           'aria-pressed': on ? 'true' : 'false',
           'aria-label': pad.name + ' step ' + (step + 1)
         });
@@ -785,12 +853,19 @@
     paintPlayhead();
   }
 
+  function paintCell(cell, notes, span) {
+    const start = Number(cell.dataset.step);
+    const note = noteAt(notes, start, Number(cell.dataset.pitch), span);
+    const on = !!note;
+    cell.classList.toggle('is-on', on);
+    cell.classList.toggle('is-head', on && start <= note.step);
+    cell.classList.toggle('is-tail', on && start + span >= note.step + note.length);
+    cell.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+
   function paintRoll(track) {
-    document.querySelectorAll('#piano-roll .cell').forEach(cell => {
-      const on = !!noteAt(track.notes, Number(cell.dataset.step), Number(cell.dataset.pitch));
-      cell.classList.toggle('is-on', on);
-      cell.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
+    const span = gridSpan();
+    document.querySelectorAll('#piano-roll .cell').forEach(cell => paintCell(cell, track.notes, span));
   }
 
   function renderPiano() {
@@ -807,11 +882,47 @@
     });
     const remove = button('text-button', { 'data-remove': '1' }, 'Remove');
     remove.disabled = !state.selectedTrack;
-    bar.append(chips, remove);
+    const x2 = button('text-button', {
+      'data-grid': '1',
+      'aria-pressed': state.grid === 32 ? 'true' : 'false',
+      'aria-label': '32-step grid'
+    }, 'x2');
+    const keyLock = document.createElement('label');
+    keyLock.className = 'lock-label';
+    keyLock.textContent = 'Key';
+    const keySel = document.createElement('select');
+    keySel.className = 'lock-select';
+    keySel.dataset.lock = 'root';
+    keySel.setAttribute('aria-label', 'Root');
+    NOTE_NAMES.forEach((name, i) => {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = name;
+      keySel.append(opt);
+    });
+    keySel.value = String(state.root);
+    keyLock.append(keySel);
+    const modeLock = document.createElement('label');
+    modeLock.className = 'lock-label';
+    modeLock.textContent = 'Scale';
+    const modeSel = document.createElement('select');
+    modeSel.className = 'lock-select';
+    modeSel.dataset.lock = 'mode';
+    modeSel.setAttribute('aria-label', 'Scale');
+    [['chromatic', 'Chromatic'], ['major', 'Major'], ['minor', 'Minor']].forEach(row => {
+      const opt = document.createElement('option');
+      opt.value = row[0];
+      opt.textContent = row[1];
+      modeSel.append(opt);
+    });
+    modeSel.value = state.mode;
+    modeLock.append(modeSel);
+    bar.append(chips, remove, x2, keyLock, modeLock);
 
     const wrap = document.createElement('div');
     wrap.className = 'roll-wrap';
     const track = selectedTrack();
+    const span = gridSpan();
     if (!track) {
       const empty = document.createElement('p');
       empty.className = 'empty-note';
@@ -821,24 +932,24 @@
       const roll = document.createElement('div');
       roll.className = 'roll';
       roll.id = 'piano-roll';
+      roll.style.setProperty('--cols', String(state.grid));
       const color = trackColor(track.type);
       for (let midi = NOTE_HI; midi >= NOTE_LO; midi -= 1) {
-        const name = document.createElement('span');
-        name.className = 'note-name' + (isBlack(midi) ? ' is-black' : '');
-        name.textContent = noteName(midi);
+        if (!inScale(midi, state.root, state.mode)) continue;
+        const name = button('note-name' + (isBlack(midi) ? ' is-black' : ''), { 'data-key': String(midi) }, noteName(midi));
         roll.append(name);
-        for (let step = 0; step < STEPS; step += 1) {
-          const on = !!noteAt(track.notes, step, midi);
+        for (let tick = 0; tick < TICKS; tick += span) {
           const cell = button(
-            'cell' + (on ? ' is-on' : '') + (isBlack(midi) ? ' is-black' : '') + (step % 4 === 0 ? ' is-beat' : ''),
+            'cell' + (isBlack(midi) ? ' is-black' : '') + (tick % 8 === 0 ? ' is-beat' : ''),
             {
-              'data-step': String(step),
+              'data-step': String(tick),
+              'data-span': String(span),
               'data-pitch': String(midi),
-              'aria-pressed': on ? 'true' : 'false',
-              'aria-label': noteName(midi) + ' step ' + (step + 1)
+              'aria-label': noteName(midi) + ' step ' + (tick / span + 1)
             }
           );
           cell.style.setProperty('--pad', color);
+          paintCell(cell, track.notes, span);
           roll.append(cell);
         }
       }
@@ -849,6 +960,7 @@
     keys.className = 'keys';
     keys.setAttribute('aria-label', 'Audition keyboard');
     for (let midi = 60; midi <= 71; midi += 1) {
+      if (!inScale(midi, state.root, state.mode)) continue;
       keys.append(button('key' + (isBlack(midi) ? ' is-black' : ''), { 'data-key': String(midi) }, NOTE_NAMES[midi % 12]));
     }
     root.replaceChildren(bar, wrap, keys);
@@ -1076,7 +1188,7 @@
       const cell = event.target.closest('[data-pad]');
       if (!cell) return;
       const pad = cell.dataset.pad;
-      const step = Number(cell.dataset.step);
+      const step = Number(cell.dataset.step) >> 1;
       state.drums[pad][step] = !state.drums[pad][step];
       cell.classList.toggle('is-on', state.drums[pad][step]);
       cell.setAttribute('aria-pressed', state.drums[pad][step] ? 'true' : 'false');
@@ -1094,20 +1206,27 @@
         renderPiano();
         return;
       }
-      if (event.target.closest('[data-remove]')) removeSelected();
+      if (event.target.closest('[data-remove]')) { removeSelected(); return; }
+      if (event.target.closest('[data-grid]')) {
+        state.grid = state.grid === 32 ? 16 : 32;
+        save();
+        renderPiano();
+      }
+    });
+    pianoView.addEventListener('change', event => {
+      const sel = event.target.closest('[data-lock]');
+      if (!sel) return;
+      if (sel.dataset.lock === 'root') state.root = clamp(sel.value, 0, 11, state.root) | 0;
+      if (sel.dataset.lock === 'mode') {
+        state.mode = sel.value === 'major' || sel.value === 'minor' ? sel.value : 'chromatic';
+      }
+      save();
+      renderPiano();
     });
     pianoView.addEventListener('pointerdown', event => {
       const key = event.target.closest('[data-key]');
       if (key) {
-        const track = selectedTrack();
-        if (!track) return;
-        const type = track.type;
-        const id = track.id;
-        const midi = Number(key.dataset.key);
-        ensureAudio().then(() => {
-          const strip = strips.get(id);
-          triggerMelodic(type, midi, ctx.currentTime + 0.01, 0.28, strip && strip.input);
-        });
+        audition(Number(key.dataset.key));
         return;
       }
       const cell = event.target.closest('.cell');
@@ -1115,35 +1234,46 @@
       const track = selectedTrack();
       if (!track) return;
       const step = Number(cell.dataset.step);
+      const span = Number(cell.dataset.span || gridSpan());
       const pitch = Number(cell.dataset.pitch);
-      if (noteAt(track.notes, step, pitch)) {
-        track.notes = removeNoteAt(track.notes, step, pitch);
-        save();
-        paintRoll(track);
+      const hit = noteAt(track.notes, step, pitch, span);
+      if (hit) {
+        drag = { pitch, origin: hit.step, length: hit.length, pointerId: event.pointerId, erase: true };
+        pianoView.setPointerCapture(event.pointerId);
         return;
       }
-      drag = { pitch, origin: step, length: 1, pointerId: event.pointerId };
-      track.notes = placeNote(track.notes, step, pitch, 1);
+      drag = { pitch, origin: step, length: span, pointerId: event.pointerId, erase: false };
+      track.notes = placeNote(track.notes, step, pitch, span);
       paintRoll(track);
+      audition(pitch);
       pianoView.setPointerCapture(event.pointerId);
     });
     pianoView.addEventListener('pointermove', event => {
       if (!drag || event.pointerId !== drag.pointerId) return;
-      const hit = document.elementFromPoint(event.clientX, event.clientY);
-      const cell = hit && hit.closest ? hit.closest('.cell') : null;
+      const el = document.elementFromPoint(event.clientX, event.clientY);
+      const cell = el && el.closest ? el.closest('.cell') : null;
       if (!cell) return;
       const pitch = Number(cell.dataset.pitch);
       const step = Number(cell.dataset.step);
+      const span = Number(cell.dataset.span || gridSpan());
       if (pitch !== drag.pitch || step < drag.origin) return;
-      const length = step - drag.origin + 1;
+      const length = step - drag.origin + span;
       if (length === drag.length) return;
       drag.length = length;
+      drag.erase = false;
       const track = selectedTrack();
       track.notes = placeNote(track.notes, drag.origin, pitch, length);
       paintRoll(track);
     });
     const endDrag = event => {
       if (!drag || (event && event.pointerId !== drag.pointerId)) return;
+      if (drag.erase) {
+        const track = selectedTrack();
+        if (track) {
+          track.notes = removeNoteAt(track.notes, drag.origin, drag.pitch);
+          paintRoll(track);
+        }
+      }
       drag = null;
       save();
     };
@@ -1157,10 +1287,14 @@
       const track = selectedTrack();
       if (!track) return;
       const step = Number(cell.dataset.step);
+      const span = Number(cell.dataset.span || gridSpan());
       const pitch = Number(cell.dataset.pitch);
-      track.notes = noteAt(track.notes, step, pitch)
-        ? removeNoteAt(track.notes, step, pitch)
-        : placeNote(track.notes, step, pitch, 1);
+      if (noteAt(track.notes, step, pitch, span)) {
+        track.notes = removeNoteAt(track.notes, step, pitch, span);
+      } else {
+        track.notes = placeNote(track.notes, step, pitch, span);
+        audition(pitch);
+      }
       save();
       paintRoll(track);
     });
