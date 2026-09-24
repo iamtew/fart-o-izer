@@ -28,6 +28,12 @@
           <i class="fa-solid fa-bars" aria-hidden="true"></i>
         </button>
         <div class="main-menu" id="main-menu" hidden>
+          <button class="reset-button" id="new-song" type="button" aria-label="New song" title="New blank song">
+            <i class="fa-solid fa-file" aria-hidden="true"></i> New
+          </button>
+          <button class="reset-button" id="save-song" type="button" aria-label="Save song" title="Save to this browser">
+            <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save
+          </button>
           <label class="song-name-label">Song
             <input id="song-name" type="text" maxlength="40" placeholder="Song name" autocomplete="off" spellcheck="false">
           </label>
@@ -36,14 +42,11 @@
               <option value="__default__">Default</option>
             </select>
           </label>
-          <button class="reset-button" id="save-song" type="button" aria-label="Save song" title="Save to this browser">
-            <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save
-          </button>
           <button class="reset-button" id="delete-song" type="button" aria-label="Delete saved song" title="Remove from library">
             <i class="fa-solid fa-trash-can" aria-hidden="true"></i> Delete
           </button>
-          <button class="reset-button" id="import-song" type="button" aria-label="Import song" title="Import JSON song file">
-            <i class="fa-solid fa-file-import" aria-hidden="true"></i> Import
+          <button class="reset-button" id="import-song" type="button" aria-label="Import JSON" title="Import JSON song file">
+            <i class="fa-solid fa-file-import" aria-hidden="true"></i> Import JSON
           </button>
           <input id="import-song-file" type="file" accept=".json,.txt,application/json,text/plain" hidden>
           <button class="reset-button" id="export-json" type="button" aria-label="Export JSON" title="Export song as JSON">

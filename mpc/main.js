@@ -60,6 +60,10 @@ export function init() {
       if (event.target === dialog) dialog.close('cancel');
     });
   });
+  document.getElementById('new-song').addEventListener('click', async () => {
+    if (!(await leaveSong())) return;
+    loadDefault();
+  });
   document.getElementById('save-song').addEventListener('click', saveToLibrary);
   document.getElementById('delete-song').addEventListener('click', deleteFromLibrary);
   document.getElementById('import-song').addEventListener('click', () => {
