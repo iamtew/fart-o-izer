@@ -1,8 +1,8 @@
 import {
-  PADS, MIX_PARAMS, STEPS, TICKS, PAGE_BARS, NOTE_LO, NOTE_HI, NOTE_NAMES, rt, strips, meterSamples
+  PADS, INSTRUMENTS, MIX_PARAMS, STEPS, TICKS, PAGE_BARS, NOTE_LO, NOTE_HI, NOTE_NAMES, rt, strips, meterSamples
 } from './const.js';
 import {
-  clamp, knobAngle, mixTip, defaultMix, noteAt, inScale, isBlack, noteName,
+  clamp, knobAngle, mixTip, defaultMix, defaultVoice, noteAt, inScale, isBlack, noteName,
   nextPatternName, emptyDrums, resizePattern, songLengthBars, clipBars, clipFits,
   placeNote, moveNote, removeNoteAt
 } from './model.js';
@@ -99,8 +99,48 @@ export function applySeqFold() {
   const btn = document.getElementById('seq-fold');
   btn.setAttribute('aria-expanded', rt.seqFolded ? 'false' : 'true');
   btn.setAttribute('aria-label', rt.seqFolded ? 'Unfold sequencer' : 'Fold sequencer');
-  const icon = btn.querySelector('i');
-  if (icon) icon.className = rt.seqFolded ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down';
+}
+
+function sideMaxShare() {
+  return window.matchMedia('(max-width: 760px)').matches ? 1 : 0.5;
+}
+
+export function applySideShare() {
+  const max = sideMaxShare();
+  const share = clamp(rt.state.sideShare, 0.12, max, 0.28);
+  const mpc = document.querySelector('.mpc');
+  mpc.style.setProperty('--side-share', (share * 100) + '%');
+  document.querySelectorAll('.side-split').forEach(split => {
+    split.setAttribute('aria-valuemin', '12');
+    split.setAttribute('aria-valuemax', String(Math.round(max * 100)));
+    split.setAttribute('aria-valuenow', String(Math.round(share * 100)));
+  });
+}
+
+function sideSplit() {
+  const split = document.createElement('div');
+  split.className = 'fold-split is-vertical side-split';
+  split.setAttribute('role', 'separator');
+  split.setAttribute('aria-orientation', 'vertical');
+  split.setAttribute('aria-label', 'Resize side panel');
+  split.tabIndex = 0;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'fold-btn side-fold';
+  btn.append(iconEl(rt.sideFolded ? 'fa-chevron-right' : 'fa-chevron-left'));
+  split.append(btn);
+  return split;
+}
+
+export function applySideFold() {
+  const mpc = document.querySelector('.mpc');
+  mpc.classList.toggle('is-side-folded', rt.sideFolded);
+  document.querySelectorAll('.side-fold').forEach(btn => {
+    btn.setAttribute('aria-expanded', rt.sideFolded ? 'false' : 'true');
+    btn.setAttribute('aria-label', rt.sideFolded ? 'Unfold side panel' : 'Fold side panel');
+    const icon = btn.querySelector('i');
+    if (icon) icon.className = 'fa-solid ' + (rt.sideFolded ? 'fa-chevron-right' : 'fa-chevron-left');
+  });
 }
 
 export function syncKeyScale() {
@@ -123,7 +163,13 @@ export function patternColor(id) {
 }
 
 export function trackColor(type) {
-  return type === 'fart' ? '#e39a4a' : '#9dcc7a';
+  const spec = INSTRUMENTS.find(item => item.id === type);
+  return spec ? spec.color : '#e39a4a';
+}
+
+export function trackInk(type) {
+  const spec = INSTRUMENTS.find(item => item.id === type);
+  return spec && spec.ink ? spec.ink : '#1c140c';
 }
 export function button(className, attrs, text) {
   const node = document.createElement('button');
@@ -393,7 +439,8 @@ export function renderBarMeter(view) {
     'data-view': 'piano',
     role: 'tab',
     'aria-selected': view === 'piano' ? 'true' : 'false'
-  }, 'Piano');
+  });
+  piano.append(iconEl('fa-music'), document.createTextNode(' Instruments'));
   views.append(kit, piano);
   const pattern = currentPattern();
   const pages = pageCount();
@@ -440,9 +487,9 @@ export function renderBarMeter(view) {
 export function renderDrums() {
   const root = document.getElementById('view-drums');
   const drums = document.createElement('div');
-  drums.className = 'drums';
+  drums.className = 'edit-row';
   const rack = document.createElement('div');
-  rack.className = 'pad-rack';
+  rack.className = 'side-panel pad-rack';
   const grid = document.createElement('div');
   grid.className = 'step-grid';
   const view = viewBars();
@@ -477,8 +524,10 @@ export function renderDrums() {
     }
     grid.append(row);
   });
-  drums.append(rack, grid);
+  drums.append(rack, sideSplit(), grid);
   root.replaceChildren(renderBarMeter('drums'), drums);
+  applySideShare();
+  applySideFold();
   paintPlayhead();
 }
 
@@ -500,18 +549,72 @@ export function paintRoll(track) {
 export function renderPiano() {
   const root = document.getElementById('view-piano');
   const bar = document.createElement('div');
-  bar.className = 'piano-bar';
-  bar.append(button('text-button', { 'data-add': 'fart' }, 'Add Fart'), button('text-button', { 'data-add': 'queef' }, 'Add Queef'));
+  bar.className = 'side-panel piano-bar';
+  const tools = document.createElement('div');
+  tools.className = 'inst-tools';
+  const typeSel = document.createElement('select');
+  typeSel.className = 'kit-view';
+  typeSel.setAttribute('aria-label', 'Instrument type');
+  typeSel.dataset.instType = '1';
+  INSTRUMENTS.forEach(spec => {
+    const opt = document.createElement('option');
+    opt.value = spec.id;
+    opt.textContent = spec.name;
+    typeSel.append(opt);
+  });
+  const add = iconButton('icon-button', { 'data-add': '1', 'aria-label': 'Add instrument', title: 'Add instrument' }, 'fa-plus');
+  const remove = iconButton('icon-button', { 'data-remove': '1', 'aria-label': 'Remove track', title: 'Remove track' }, 'fa-trash');
+  remove.disabled = !rt.state.selectedTrack;
+  tools.append(typeSel, add, remove);
   const chips = document.createElement('div');
   chips.className = 'track-chips';
   rt.state.tracks.forEach(track => {
     const chip = button('chip' + (track.id === rt.state.selectedTrack ? ' is-selected' : ''), { 'data-select': track.id }, track.name);
     chip.style.setProperty('--pad', trackColor(track.type));
+    chip.style.setProperty('--on-ink', trackInk(track.type));
     chips.append(chip);
   });
-  const remove = button('text-button', { 'data-remove': '1' }, 'Remove');
-  remove.disabled = !rt.state.selectedTrack;
-  bar.append(chips, remove);
+  const settings = document.createElement('div');
+  settings.className = 'inst-settings';
+  const selected = selectedTrack();
+  const heading = document.createElement('h3');
+  heading.className = 'inst-settings-title';
+  heading.textContent = selected ? selected.name : 'Add an instrument';
+  settings.append(heading);
+  if (selected) {
+    if (!selected.voice) selected.voice = defaultVoice();
+    const spec = INSTRUMENTS.find(item => item.id === selected.type);
+    (spec && spec.voice ? spec.voice : []).forEach(row => {
+      const key = row[0];
+      const label = row[1];
+      const kind = row[2];
+      if (kind === 'toggle') {
+        const wrap = document.createElement('label');
+        wrap.className = 'inst-toggle';
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.dataset.voice = key;
+        box.checked = !!selected.voice[key];
+        wrap.append(box, document.createTextNode(label));
+        settings.append(wrap);
+        return;
+      }
+      const wrap = document.createElement('label');
+      wrap.className = 'inst-slider';
+      const cap = document.createElement('span');
+      cap.textContent = label;
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = String(row[2]);
+      input.max = String(row[3]);
+      input.step = String(row[4]);
+      input.value = String(selected.voice[key]);
+      input.dataset.voice = key;
+      wrap.append(cap, input);
+      settings.append(wrap);
+    });
+  }
+  bar.append(tools, chips, settings);
 
   const wrap = document.createElement('div');
   wrap.className = 'roll-wrap';
@@ -520,7 +623,7 @@ export function renderPiano() {
   if (!track) {
     const empty = document.createElement('p');
     empty.className = 'empty-note';
-    empty.textContent = 'Add a Fart or Queef, then paint notes on the roll.';
+    empty.textContent = 'Add an instrument, then paint notes on the roll.';
     wrap.append(empty);
   } else {
     const roll = document.createElement('div');
@@ -561,7 +664,15 @@ export function renderPiano() {
     if (!inScale(midi, rt.state.root, rt.state.mode)) continue;
     keys.append(button('key' + (isBlack(midi) ? ' is-black' : ''), { 'data-key': String(midi) }, NOTE_NAMES[midi % 12]));
   }
-  root.replaceChildren(bar, renderBarMeter('piano'), wrap, keys);
+  const main = document.createElement('div');
+  main.className = 'editor-main';
+  main.append(wrap, keys);
+  const row = document.createElement('div');
+  row.className = 'edit-row';
+  row.append(bar, sideSplit(), main);
+  root.replaceChildren(renderBarMeter('piano'), row);
+  applySideShare();
+  applySideFold();
   paintPlayhead();
 }
 
@@ -703,6 +814,8 @@ export function syncKit() {
 }
 
 export function addTrack(type) {
+  const spec = INSTRUMENTS.find(item => item.id === type);
+  if (!spec) return;
   let id = 't' + rt.state.nextId;
   rt.state.nextId += 1;
   while (rt.state.tracks.some(track => track.id === id)) {
@@ -713,7 +826,8 @@ export function addTrack(type) {
   rt.state.tracks.push({
     id,
     type,
-    name: (type === 'fart' ? 'Fart ' : 'Queef ') + count
+    name: spec.name + ' ' + count,
+    voice: defaultVoice()
   });
   rt.state.patterns.forEach(pattern => { pattern.notes[id] = []; });
   rt.state.mix[id] = defaultMix();

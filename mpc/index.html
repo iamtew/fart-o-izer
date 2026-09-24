@@ -114,11 +114,12 @@
       </div>
     </header>
     <section class="mpc-view" id="view-drums" data-view-panel="drums" aria-label="Drum machine"></section>
-    <section class="mpc-view" id="view-piano" data-view-panel="piano" aria-label="Piano roll" hidden></section>
+    <section class="mpc-view" id="view-piano" data-view-panel="piano" aria-label="Instruments" hidden></section>
     <section class="mpc-view" id="view-mixer" data-view-panel="mixer" aria-label="Mixer" hidden></section>
     <nav class="pattern-bank" id="pattern-bank" aria-label="Patterns"></nav>
-    <div class="seq-split" id="seq-split" role="separator" aria-orientation="horizontal" aria-label="Resize sequencer" tabindex="0">
-      <button class="seq-fold" id="seq-fold" type="button" aria-expanded="true" aria-label="Fold sequencer">
+    <div class="fold-split seq-split" id="seq-split" role="separator" aria-orientation="horizontal" aria-label="Resize sequencer" tabindex="0">
+      <button class="fold-btn seq-fold" id="seq-fold" type="button" aria-expanded="true" aria-label="Fold sequencer">
+        <i class="fa-solid fa-chevron-up" aria-hidden="true"></i>
         <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
       </button>
     </div>
@@ -137,6 +138,15 @@
   <dialog class="song-dialog" id="delete-dialog" aria-labelledby="delete-dialog-copy">
     <form method="dialog">
       <p id="delete-dialog-copy">Remove this song from the library?</p>
+      <div class="song-dialog-actions">
+        <button class="reset-button" value="ok">Remove</button>
+        <button class="reset-button" value="cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog class="song-dialog" id="track-delete-dialog" aria-labelledby="track-delete-copy">
+    <form method="dialog">
+      <p id="track-delete-copy">Remove this instrument?</p>
       <div class="song-dialog-actions">
         <button class="reset-button" value="ok">Remove</button>
         <button class="reset-button" value="cancel">Cancel</button>

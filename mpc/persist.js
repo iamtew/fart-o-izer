@@ -10,7 +10,7 @@ import {
   ensureAudio, createStrip, destroyStrip, applyAllMix, stopTransport, scheduleTick
 } from './audio.js';
 import {
-  applySeqShare, syncKeyScale, syncKit, showView, currentViewName
+  applySeqShare, syncKeyScale, syncKit, showView, currentViewName, applySideShare
 } from './ui.js';
 
 export function loadState() {
@@ -379,6 +379,7 @@ export function adoptState(next) {
   syncKeyScale();
   syncKit();
   applySeqShare();
+  applySideShare();
   save();
   showView(currentViewName());
   markClean();

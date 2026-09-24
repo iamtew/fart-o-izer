@@ -1,5 +1,5 @@
 import {
-  STEPS, TICKS, NOTE_LO, NOTE_HI, MAJOR, MINOR, PADS, MIX_PARAMS, NOTE_NAMES,
+  STEPS, TICKS, NOTE_LO, NOTE_HI, MAJOR, MINOR, PADS, INSTRUMENTS, MIX_PARAMS, NOTE_NAMES,
   LPF_OPEN, LPF_MIN, HPF_OPEN, HPF_MAX, SONG_VERSION, SONG_NAME_MAX,
   POOP_LEFT, POOP_RIGHT, DEFAULT_SONG
 } from './const.js';
@@ -34,6 +34,20 @@ export function clamp(value, min, max, fallback) {
 
 export function defaultMix() {
   return { gain: 0, high: 0, mid: 0, low: 0, filter: 0, pan: 0, level: 0.8, mute: false, solo: false };
+}
+
+export function defaultVoice() {
+  return { legato: 0, slide: 0, noise: 0.35, rumble: 0.32 };
+}
+
+export function cleanVoice(raw) {
+  const voice = defaultVoice();
+  if (!raw) return voice;
+  voice.legato = raw.legato ? 1 : 0;
+  voice.slide = clamp(raw.slide, 0, 1, voice.slide);
+  voice.noise = clamp(raw.noise, 0, 1, voice.noise);
+  voice.rumble = clamp(raw.rumble, 0, 1, voice.rumble);
+  return voice;
 }
 
 export function gainAmp(amount) {
@@ -302,7 +316,7 @@ export function freshState() {
     kit: '808', bpm: 140, tracks: [], mix, nextId: 1, selectedTrack: null,
     grid: 16, root: 5, mode: 'major', ticks: TICKS,
     patterns: [pattern], patternId: 'p1', nextPattern: 2,
-    arrangement: [], loopStart: 0, loopEnd: 0, playSong: false, pxPerBar: 48, seqShare: 0.33,
+    arrangement: [], loopStart: 0, loopEnd: 0, playSong: false, pxPerBar: 48, seqShare: 0.33, sideShare: 0.28,
     songName: ''
   };
 }
@@ -364,11 +378,12 @@ export function hydrateFromRaw(raw) {
     state.mix.master = cleanMix(raw.mix && raw.mix.master);
     if (Array.isArray(raw.tracks)) {
       raw.tracks.forEach(track => {
-        if (!track || (track.type !== 'fart' && track.type !== 'queef') || typeof track.id !== 'string') return;
+        if (!track || !INSTRUMENTS.some(item => item.id === track.type) || typeof track.id !== 'string') return;
         state.tracks.push({
           id: track.id,
           type: track.type,
-          name: String(track.name || track.type).slice(0, 32)
+          name: String(track.name || track.type).slice(0, 32),
+          voice: cleanVoice(track.voice)
         });
         state.mix[track.id] = cleanMix(raw.mix && raw.mix[track.id]);
       });
@@ -412,6 +427,7 @@ export function hydrateFromRaw(raw) {
     state.playSong = !!raw.playSong && state.arrangement.length > 0;
     state.pxPerBar = clamp(raw.pxPerBar, 16, 160, 48);
     state.seqShare = clamp(raw.seqShare, 0.18, 0.7, 0.33);
+    state.sideShare = clamp(raw.sideShare, 0.12, 1, 0.28);
     state.nextId = Math.max(1, Number(raw.nextId) || 1);
     state.selectedTrack = state.tracks.some(track => track.id === raw.selectedTrack)
       ? raw.selectedTrack
@@ -484,6 +500,11 @@ export function selfCheck() {
   }
   const def = defaultMix();
   if (def.mute || def.solo) throw new Error('MPC mute/solo should default off');
+  const voice = defaultVoice();
+  if (cleanVoice({ legato: 2, slide: 3, noise: -1, rumble: 0.5 }).legato !== 1) {
+    throw new Error('MPC voice legato should coerce to 0/1');
+  }
+  if (voice.slide !== 0 || voice.noise < 0 || voice.noise > 1) throw new Error('MPC defaultVoice out of range');
   const soloMap = { kick: { mute: false, solo: true }, snare: { mute: false, solo: false }, master: { mute: false, solo: false } };
   if (!stripAudible('kick', soloMap) || stripAudible('snare', soloMap) || !stripAudible('master', soloMap)) {
     throw new Error('MPC solo should silence other channels, not master');

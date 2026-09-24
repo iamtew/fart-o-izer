@@ -101,16 +101,41 @@ export function decayAmp(peak, decay, when) {
   return gain;
 }
 
-export function noteAmp(peak, dur, when) {
+export function noteAmp(peak, dur, when, legato) {
   const gain = rt.ctx.createGain();
-  const attack = Math.min(0.015, dur * 0.25);
+  const attack = legato ? 0.008 : Math.min(0.015, dur * 0.25);
   const release = Math.min(0.08, dur * 0.35);
   const hold = Math.max(attack, dur - release);
-  gain.gain.setValueAtTime(0.0001, when);
-  gain.gain.exponentialRampToValueAtTime(peak, when + attack);
+  if (legato) {
+    gain.gain.setValueAtTime(Math.max(0.0002, peak * 0.85), when);
+    gain.gain.linearRampToValueAtTime(peak, when + attack);
+  } else {
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.exponentialRampToValueAtTime(peak, when + attack);
+  }
   gain.gain.setValueAtTime(peak, when + hold);
   gain.gain.exponentialRampToValueAtTime(0.0001, when + Math.max(hold + 0.01, dur));
   return gain;
+}
+
+function midiHz(midi) {
+  return 440 * 2 ** ((midi - 69) / 12);
+}
+
+function slideFreq(osc, trackId, freq, when, voice) {
+  const last = rt.lastPitch[trackId];
+  const slide = voice && voice.slide ? Number(voice.slide) : 0;
+  if (last && last.freq > 20 && slide > 0) {
+    osc.frequency.setValueAtTime(last.freq, when);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(20, freq), when + Math.max(0.02, slide * 0.12));
+    return;
+  }
+  osc.frequency.setValueAtTime(freq, when);
+}
+
+function voiceLegato(trackId, when, voice) {
+  const last = rt.lastPitch[trackId];
+  return !!(voice && voice.legato && last && last.until > when);
 }
 
 export function triggerKick(when, dest) {
@@ -264,14 +289,17 @@ export function triggerPad(id, when) {
   else triggerTom(when, id, dest);
 }
 
-export function triggerFart(when, dur, freq, dest) {
+export function triggerFart(when, dur, freq, dest, voice, trackId) {
+  const noiseAmt = voice ? clamp01(voice.noise, 0.35) : 0.35;
+  const rumble = voice ? clamp01(voice.rumble, 0.32) : 0.32;
+  const legato = voiceLegato(trackId, when, voice);
   const osc = rt.ctx.createOscillator();
   osc.type = 'sawtooth';
-  osc.frequency.setValueAtTime(freq, when);
+  slideFreq(osc, trackId, freq, when, voice);
   const lfo = rt.ctx.createOscillator();
   const lfoGain = rt.ctx.createGain();
   lfo.frequency.setValueAtTime(5, when);
-  lfoGain.gain.setValueAtTime(14, when);
+  lfoGain.gain.setValueAtTime(44 * rumble, when);
   lfo.connect(lfoGain);
   lfoGain.connect(osc.detune);
   const filter = rt.ctx.createBiquadFilter();
@@ -282,8 +310,8 @@ export function triggerFart(when, dur, freq, dest) {
   noise.buffer = rt.noiseBuffer;
   noise.loop = true;
   const noiseGain = rt.ctx.createGain();
-  noiseGain.gain.setValueAtTime(0.08, when);
-  const amp = noteAmp(0.26, dur, when);
+  noiseGain.gain.setValueAtTime(0.22 * noiseAmt, when);
+  const amp = noteAmp(0.26, dur, when, legato);
   osc.connect(filter);
   noise.connect(noiseGain);
   noiseGain.connect(filter);
@@ -296,20 +324,32 @@ export function triggerFart(when, dur, freq, dest) {
   osc.stop(stop);
   noise.stop(stop);
   lfo.stop(stop);
+  if (trackId) rt.lastPitch[trackId] = { freq, until: when + dur };
   return { amp, sources: [osc, noise, lfo] };
 }
 
-export function triggerQueef(when, dur, freq, dest) {
+export function triggerQueef(when, dur, freq, dest, voice, trackId) {
+  const noiseAmt = voice ? clamp01(voice.noise, 0.18) : 0.18;
+  const rumble = voice ? clamp01(voice.rumble, 0.38) : 0.38;
+  const legato = voiceLegato(trackId, when, voice);
   const body = rt.ctx.createOscillator();
   body.type = 'triangle';
-  body.frequency.setValueAtTime(freq, when);
+  slideFreq(body, trackId, freq, when, voice);
   const shimmer = rt.ctx.createOscillator();
   shimmer.type = 'sine';
-  shimmer.frequency.setValueAtTime(freq * 2, when);
+  const last = rt.lastPitch[trackId];
+  const slide = voice && voice.slide ? Number(voice.slide) : 0;
+  if (last && last.freq > 20 && slide > 0) {
+    const t = Math.max(0.02, slide * 0.12);
+    shimmer.frequency.setValueAtTime(last.freq * 2, when);
+    shimmer.frequency.exponentialRampToValueAtTime(Math.max(20, freq * 2), when + t);
+  } else {
+    shimmer.frequency.setValueAtTime(freq * 2, when);
+  }
   const vib = rt.ctx.createOscillator();
   const vibGain = rt.ctx.createGain();
   vib.frequency.setValueAtTime(6, when);
-  vibGain.gain.setValueAtTime(8, when);
+  vibGain.gain.setValueAtTime(21 * rumble, when);
   vib.connect(vibGain);
   vibGain.connect(body.detune);
   const filter = rt.ctx.createBiquadFilter();
@@ -320,28 +360,45 @@ export function triggerQueef(when, dur, freq, dest) {
   bodyGain.gain.value = 0.85;
   const shimmerGain = rt.ctx.createGain();
   shimmerGain.gain.value = 0.22;
-  const amp = noteAmp(0.32, dur, when);
+  const noise = rt.ctx.createBufferSource();
+  noise.buffer = rt.noiseBuffer;
+  noise.loop = true;
+  const noiseGain = rt.ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.16 * noiseAmt, when);
+  const amp = noteAmp(0.32, dur, when, legato);
   body.connect(bodyGain);
   bodyGain.connect(filter);
   shimmer.connect(shimmerGain);
   shimmerGain.connect(filter);
+  noise.connect(noiseGain);
+  noiseGain.connect(filter);
   filter.connect(amp);
   amp.connect(dest);
   const stop = when + dur + 0.02;
   body.start(when);
   shimmer.start(when);
   vib.start(when);
+  noise.start(when);
   body.stop(stop);
   shimmer.stop(stop);
   vib.stop(stop);
-  return { amp, sources: [body, shimmer, vib] };
+  noise.stop(stop);
+  if (trackId) rt.lastPitch[trackId] = { freq, until: when + dur };
+  return { amp, sources: [body, shimmer, vib, noise] };
 }
 
-export function triggerMelodic(type, midi, when, dur, dest) {
-  if (!dest) return null;
-  const freq = 440 * 2 ** ((midi - 69) / 12);
-  if (type === 'queef') return triggerQueef(when, dur, freq, dest);
-  return triggerFart(when, dur, freq, dest);
+function clamp01(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : fallback;
+}
+
+export function triggerMelodic(type, midi, when, dur, dest, voice, trackId) {
+  if (!dest || !rt.ctx) return null;
+  when = Math.max(when, rt.ctx.currentTime);
+  dur = Math.max(0.02, Number(dur) || 0);
+  const freq = midiHz(midi);
+  if (type === 'queef') return triggerQueef(when, dur, freq, dest, voice, trackId);
+  return triggerFart(when, dur, freq, dest, voice, trackId);
 }
 
 export function releaseVoice(voice) {
@@ -364,7 +421,7 @@ export function audition(midi) {
   const id = track.id;
   ensureAudio().then(() => {
     const strip = strips.get(id);
-    triggerMelodic(type, midi, rt.ctx.currentTime + 0.01, 0.28, strip && strip.input);
+    triggerMelodic(type, midi, rt.ctx.currentTime + 0.01, 0.28, strip && strip.input, track.voice, id);
   });
 }
 
@@ -404,7 +461,7 @@ export function scheduleTick(tick, when) {
     (notesMap[track.id] || []).forEach(note => {
       if (note.step !== localTick) return;
       if (heldLiveNote(track.id, note)) return;
-      triggerMelodic(track.type, note.pitch, when, note.length * durTick, dest.input);
+      triggerMelodic(track.type, note.pitch, when, note.length * durTick, dest.input, track.voice, track.id);
     });
   });
 }
@@ -559,22 +616,22 @@ export function stretchHeldKeys() {
 }
 
 export function beginKeyHold(id, el, midi) {
-  if (padPointers.has(id)) return;
+  if (padPointers.has(id)) endLivePointer(id);
   const track = selectedTrack();
+  if (!track) return;
   const span = gridSpan();
-  const writing = !!(rt.recording && rt.playing && track);
+  const writing = !!(rt.recording && rt.playing);
   const start = writing ? snapTick(rt.playhead < 0 ? 0 : rt.playhead, currentPattern().bars, span) : 0;
-    const hold = { kind: 'key', el, midi, start, trackId: track && track.id, voice: null, length: span, recording: writing };
+  const hold = { kind: 'key', el, midi, start, trackId: track.id, voice: null, length: span, recording: writing };
   padPointers.set(id, hold);
   el.classList.add('is-down');
   if (writing) writeHeldNote(hold, span);
-  if (!track) return;
   ensureAudio().then(() => {
     const live = padPointers.get(id);
-    if (!live || live.kind !== 'key') return;
     const strip = strips.get(track.id);
-    // ponytail: 60s hold ceiling; releaseVoice cuts it short
-    live.voice = triggerMelodic(track.type, midi, rt.ctx.currentTime, 60, strip && strip.input);
+    // ponytail: 60s hold ceiling; tap uses 0.28s if pointer already released
+    const node = triggerMelodic(track.type, midi, rt.ctx.currentTime, live && live.kind === 'key' ? 60 : 0.28, strip && strip.input, track.voice, track.id);
+    if (live && live.kind === 'key') live.voice = node;
   });
 }
 

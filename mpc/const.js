@@ -28,6 +28,26 @@ export const POOP_RIGHT = ['Honk', 'Toot', 'Symphony', 'Clapz', 'Rumble', 'Squir
 export const LOOKAHEAD_MS = 25;
 export const HORIZON = 0.1;
 export const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+export const INSTRUMENTS = [
+  {
+    id: 'fart', name: 'Fart', icon: 'fa-poo', color: '#e39a4a', ink: '#1c140c',
+    voice: [
+      ['legato', 'Legato', 'toggle'],
+      ['slide', 'Slide', 0, 1, 0.01],
+      ['noise', 'Splatter', 0, 1, 0.01],
+      ['rumble', 'Rumble', 0, 1, 0.01]
+    ]
+  },
+  {
+    id: 'queef', name: 'Queef', icon: 'fa-wind', color: '#9dcc7a', ink: '#14210f',
+    voice: [
+      ['legato', 'Legato', 'toggle'],
+      ['slide', 'Slide', 0, 1, 0.01],
+      ['noise', 'Pink noise', 0, 1, 0.01],
+      ['rumble', 'Vibrato', 0, 1, 0.01]
+    ]
+  }
+];
 export const PADS = [
   { id: 'kick', name: 'Kick', color: '#e39a4a', ink: '#1c140c' },
   { id: 'snare', name: 'Snare', color: '#9dcc7a', ink: '#14210f' },
@@ -70,11 +90,13 @@ export const rt = {
   playhead: -1,
   drag: null,
   seqFolded: false,
+  sideFolded: false,
   lastEditView: 'drums',
   tlDrag: null,
   patternPage: 0,
   hats: [],
   meterRaf: 0,
   snapshot: '',
-  loadedFrom: DEFAULT_SONG
+  loadedFrom: DEFAULT_SONG,
+  lastPitch: {}
 };

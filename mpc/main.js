@@ -1,19 +1,20 @@
 import { SONG_ID, SONG_NAME_MAX, DEFAULT_SONG, MIX_PARAMS, rt } from './const.js';
 import {
   selfCheck, clamp, cleanSongName, payloadOf, freshState, decodePayload,
-  clipFits, clipBars, noteAt, placeNote, removeNoteAt, moveNote, defaultMix
+  clipFits, clipBars, noteAt, placeNote, removeNoteAt, moveNote, defaultMix, defaultVoice
 } from './model.js';
 import {
   save, loadLibrary, leaveSong, loadDefault, loadFromLibrary, saveToLibrary,
   deleteFromLibrary, importSongFile, exportSongJson, exportSong, currentPattern,
-  setSongStatus, syncSongNameInput, syncLibrarySelect, selectedTrack, trackNotes, patternTicks
+  setSongStatus, syncSongNameInput, syncLibrarySelect, selectedTrack, trackNotes, patternTicks,
+  askDialog
 } from './persist.js';
 import {
   startTransport, stopTransport, armRecord, hitPad, beginKeyHold, endLivePointer,
   applyAllMix, applyMix, gridSpan, audition
 } from './audio.js';
 import {
-  syncKit, syncKeyScale, applySeqShare, applySeqFold, setRecUi, setMainMenuOpen,
+  syncKit, syncKeyScale, applySeqShare, applySeqFold, applySideShare, applySideFold, setRecUi, setMainMenuOpen,
   showView, currentViewName, renderPiano, addPattern, copyPattern, resizeCurrentPattern, deleteCurrentPattern,
   selectPattern, startRename, renderTimeline, handleBarMeter, addTrack, removeSelected,
   paintRoll, loopEndBar, syncPlayMode, paintKnob, showMixTip
@@ -26,8 +27,11 @@ export function init() {
   syncKit();
   syncKeyScale();
   rt.seqFolded = window.matchMedia('(max-width: 760px)').matches;
+  rt.sideFolded = rt.seqFolded;
   applySeqShare();
   applySeqFold();
+  applySideShare();
+  applySideFold();
   setRecUi();
   syncSongNameInput();
   const stored = loadLibrary().find(item => item.name === cleanSongName(rt.state.songName));
@@ -54,7 +58,7 @@ export function init() {
     if (next === DEFAULT_SONG) loadDefault();
     else loadFromLibrary(next);
   });
-  ['leave-dialog', 'delete-dialog'].forEach(id => {
+  ['leave-dialog', 'delete-dialog', 'track-delete-dialog'].forEach(id => {
     const dialog = document.getElementById(id);
     dialog.addEventListener('click', event => {
       if (event.target === dialog) dialog.close('cancel');
@@ -144,6 +148,52 @@ export function init() {
     event.stopPropagation();
     rt.seqFolded = !rt.seqFolded;
     applySeqFold();
+  });
+  document.querySelector('.mpc').addEventListener('click', event => {
+    if (!event.target.closest('.side-fold')) return;
+    event.stopPropagation();
+    rt.sideFolded = !rt.sideFolded;
+    applySideFold();
+  });
+  document.querySelector('.mpc').addEventListener('pointerdown', event => {
+    const split = event.target.closest('.side-split');
+    if (!split || event.button || rt.sideFolded || event.target.closest('.side-fold')) return;
+    const row = split.closest('.edit-row');
+    const panel = row && row.querySelector('.side-panel');
+    if (!panel) return;
+    const total = row.offsetWidth;
+    if (!total) return;
+    const startX = event.clientX;
+    const startW = panel.offsetWidth;
+    const maxShare = window.matchMedia('(max-width: 760px)').matches ? 1 : 0.5;
+    try { split.setPointerCapture(event.pointerId); } catch (err) { /* no hardware pointer */ }
+    const onMove = ev => {
+      rt.state.sideShare = clamp((startW + (ev.clientX - startX)) / total, 0.12, maxShare, rt.state.sideShare);
+      applySideShare();
+    };
+    const onUp = () => {
+      split.removeEventListener('pointermove', onMove);
+      split.removeEventListener('pointerup', onUp);
+      split.removeEventListener('pointercancel', onUp);
+      save();
+    };
+    split.addEventListener('pointermove', onMove);
+    split.addEventListener('pointerup', onUp);
+    split.addEventListener('pointercancel', onUp);
+  });
+  document.querySelector('.mpc').addEventListener('keydown', event => {
+    if (rt.sideFolded || !event.target.closest('.side-split')) return;
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    const maxShare = window.matchMedia('(max-width: 760px)').matches ? 1 : 0.5;
+    rt.state.sideShare = clamp(
+      rt.state.sideShare + (event.key === 'ArrowRight' ? 0.04 : -0.04),
+      0.12,
+      maxShare,
+      rt.state.sideShare
+    );
+    applySideShare();
+    save();
   });
   split.addEventListener('pointerdown', event => {
     if (event.button || rt.seqFolded || event.target.closest('.seq-fold')) return;
@@ -342,12 +392,16 @@ export function init() {
   });
 
   const pianoView = document.getElementById('view-piano');
-  pianoView.addEventListener('click', event => {
+  pianoView.addEventListener('click', async event => {
     if (handleBarMeter(event)) return;
     const liveKey = event.target.closest('[data-key]');
     if (liveKey) return;
     const add = event.target.closest('[data-add]');
-    if (add) { addTrack(add.dataset.add); return; }
+    if (add) {
+      const typeSel = pianoView.querySelector('[data-inst-type]');
+      addTrack(typeSel && typeSel.value);
+      return;
+    }
     const select = event.target.closest('[data-select]');
     if (select) {
       rt.state.selectedTrack = select.dataset.select;
@@ -355,12 +409,29 @@ export function init() {
       renderPiano();
       return;
     }
-    if (event.target.closest('[data-remove]')) { removeSelected(); return; }
+    if (event.target.closest('[data-remove]')) {
+      const track = selectedTrack();
+      if (!track) return;
+      const copy = document.getElementById('track-delete-copy');
+      if (copy) copy.textContent = 'Remove ' + track.name + '?';
+      if (await askDialog('track-delete-dialog') !== 'ok') return;
+      removeSelected();
+      return;
+    }
     if (event.target.closest('[data-grid]')) {
       rt.state.grid = rt.state.grid === 32 ? 16 : 32;
       save();
       renderPiano();
     }
+  });
+  pianoView.addEventListener('input', event => {
+    const input = event.target.closest('[data-voice]');
+    if (!input) return;
+    const track = selectedTrack();
+    if (!track) return;
+    if (!track.voice) track.voice = defaultVoice();
+    track.voice[input.dataset.voice] = input.type === 'checkbox' ? (input.checked ? 1 : 0) : Number(input.value);
+    save();
   });
   pianoView.addEventListener('pointerdown', event => {
     const key = event.target.closest('[data-key]');
@@ -402,6 +473,7 @@ export function init() {
         pointerId: event.pointerId,
         erase: true
       };
+      audition(pitch);
       if (capture) pianoView.setPointerCapture(event.pointerId);
       return;
     }

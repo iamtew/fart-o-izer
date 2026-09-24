@@ -45,6 +45,11 @@
   gap: 0.35rem;
   justify-self: start;
 }
+.bar-meter-views .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
 .kit-view {
   min-height: 2.1rem;
   padding: 0.3rem 0.45rem;
