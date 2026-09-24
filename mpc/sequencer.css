@@ -4,9 +4,10 @@
   gap: 0.45rem;
   flex: 0 0 auto;
   min-height: 0;
-  padding: 0.2rem 0;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--panel);
 }
 .pattern-mid {
   display: flex;
@@ -27,10 +28,16 @@
 }
 .bar-meter {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
   gap: 0.45rem;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--panel);
 }
 .bar-meter-views {
   display: flex;
@@ -54,8 +61,10 @@
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
+  min-width: 0;
+  overflow-x: auto;
 }
-.bar-slots { display: flex; gap: 0.2rem; }
+.bar-slots { display: flex; gap: 0.2rem; flex: 0 0 auto; }
 .bar-slot {
   min-width: 1.7rem;
   min-height: 1.7rem;
@@ -110,15 +119,18 @@
   min-height: 6rem;
   min-width: 0;
   gap: 0.35rem;
+  padding: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--panel);
 }
 .tl-tools { display: flex; gap: 0.3rem; }
 .tl-scroll {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  border: 1px solid var(--line);
-  border-radius: 0.4rem;
-  background: var(--panel);
+  border-radius: 0.25rem;
+  background: var(--panel-light);
 }
 .tl-inner { position: relative; min-width: 100%; min-height: 100%; padding: 0.35rem 0 0.5rem; }
 .tl-ruler { position: relative; height: 1.55rem; }
@@ -159,7 +171,7 @@
   position: relative;
   height: 3.2rem;
   margin: 0.25rem 0 0;
-  background: color-mix(in srgb, var(--panel-light) 70%, transparent);
+  background: var(--panel-light);
 }
 .tl-clip {
   position: absolute;
@@ -191,4 +203,23 @@
   background: var(--ink);
   pointer-events: none;
   z-index: 2;
+}
+
+@media (max-width: 760px) {
+  .bar-meter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .bar-meter-views { flex: 1 1 auto; min-width: 0; }
+  .bar-meter-main {
+    grid-column: auto;
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+  .bar-meter-main > * { flex-shrink: 0; }
+  .bar-meter [data-clear-pattern] {
+    grid-column: auto;
+    margin-left: auto;
+  }
 }

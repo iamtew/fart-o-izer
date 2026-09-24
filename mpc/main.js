@@ -125,7 +125,7 @@ export function init() {
     save();
     syncKit();
   });
-  document.querySelector('.transport').addEventListener('change', event => {
+  document.querySelector('.mpc-bar').addEventListener('change', event => {
     const sel = event.target.closest('[data-lock]');
     if (!sel) return;
     if (sel.dataset.lock === 'root') rt.state.root = clamp(sel.value, 0, 11, rt.state.root) | 0;
@@ -361,6 +361,10 @@ export function init() {
     const key = event.target.closest('[data-key]');
     if (key) {
       if (event.button) return;
+      if (event.pointerType === 'touch') {
+        rt.drag = { kind: 'pending-key', pointerId: event.pointerId, x: event.clientX, y: event.clientY, key };
+        return;
+      }
       event.preventDefault();
       beginKeyHold(event.pointerId, key, Number(key.dataset.key));
       try { key.setPointerCapture(event.pointerId); } catch (err) { /* no hardware pointer */ }
@@ -368,6 +372,13 @@ export function init() {
     }
     const cell = event.target.closest('.cell');
     if (!cell) return;
+    if (event.pointerType === 'touch') {
+      rt.drag = { kind: 'pending-cell', pointerId: event.pointerId, x: event.clientX, y: event.clientY, cell };
+      return;
+    }
+    beginCellDrag(event, cell);
+  });
+  const beginCellDrag = (event, cell, capture = true) => {
     const track = selectedTrack();
     if (!track) return;
     const step = Number(cell.dataset.step);
@@ -386,17 +397,23 @@ export function init() {
         pointerId: event.pointerId,
         erase: true
       };
-      pianoView.setPointerCapture(event.pointerId);
+      if (capture) pianoView.setPointerCapture(event.pointerId);
       return;
     }
     rt.drag = { kind: 'draw', pitch, origin: step, length: span, pointerId: event.pointerId, erase: false };
     currentPattern().notes[track.id] = placeNote(trackNotes(track), step, pitch, span, patternTicks());
     paintRoll(track);
     audition(pitch);
-    pianoView.setPointerCapture(event.pointerId);
-  });
+    if (capture) pianoView.setPointerCapture(event.pointerId);
+  };
   pianoView.addEventListener('pointermove', event => {
     if (!rt.drag || event.pointerId !== rt.drag.pointerId) return;
+    if (rt.drag.kind === 'pending-cell' || rt.drag.kind === 'pending-key') {
+      const dx = event.clientX - rt.drag.x;
+      const dy = event.clientY - rt.drag.y;
+      if (dx * dx + dy * dy > 144) rt.drag = null;
+      return;
+    }
     const el = document.elementFromPoint(event.clientX, event.clientY);
     const cell = el && el.closest ? el.closest('.cell') : null;
     if (!cell) return;
@@ -429,6 +446,16 @@ export function init() {
   });
   const endDrag = event => {
     if (!rt.drag || (event && event.pointerId !== rt.drag.pointerId)) return;
+    if (rt.drag.kind === 'pending-cell') {
+      beginCellDrag(event, rt.drag.cell, false);
+    }
+    if (rt.drag && rt.drag.kind === 'pending-key') {
+      const key = rt.drag.key;
+      rt.drag = null;
+      beginKeyHold(event.pointerId, key, Number(key.dataset.key));
+      endLivePointer(event.pointerId);
+      return;
+    }
     if (rt.drag.erase) {
       const track = selectedTrack();
       if (track) {
@@ -445,6 +472,10 @@ export function init() {
   });
   pianoView.addEventListener('pointercancel', event => {
     endLivePointer(event.pointerId);
+    if (rt.drag && event.pointerId === rt.drag.pointerId && (rt.drag.kind === 'pending-cell' || rt.drag.kind === 'pending-key')) {
+      rt.drag = null;
+      return;
+    }
     endDrag(event);
   });
   pianoView.addEventListener('keydown', event => {

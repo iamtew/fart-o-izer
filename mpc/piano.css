@@ -6,13 +6,13 @@
 }
 .track-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 
-.roll-wrap { flex: 0 1 auto; min-height: 0; max-height: 100%; overflow: auto; }
+.roll-wrap { flex: 0 1 auto; min-height: 0; max-height: 100%; overflow: auto; touch-action: pan-x pan-y; }
 .roll {
   display: grid;
   grid-template-columns: 3.2rem repeat(var(--cols, 16), minmax(1.35rem, 1fr));
   gap: 2px;
   min-width: 36rem;
-  touch-action: none;
+  touch-action: pan-x pan-y;
   user-select: none;
 }
 .note-name {
@@ -25,7 +25,7 @@
   font-size: 0.68rem;
   letter-spacing: 0.04em;
   text-align: left;
-  touch-action: none;
+  touch-action: pan-x pan-y;
   user-select: none;
 }
 .note-name.is-black { color: var(--brown-light); }
